@@ -1,0 +1,7 @@
+[project]
+name = "uvault"
+version = "0.1.0"
+description = "Development and vaulting workflow for uv VCS dependencies."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
