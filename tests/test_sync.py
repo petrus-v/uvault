@@ -123,7 +123,14 @@ def test_sync_cache_exists(mock_run, temp_pyproject, tmp_path):
 
     fetch_call = [call for call in mock_run.call_args_list if "fetch" in call.args[0]]
     assert len(fetch_call) == 1
-    assert fetch_call[0].args[0] == ["git", "-C", str(repo_dir), "fetch", "origin"]
+    assert fetch_call[0].args[0] == [
+        "git",
+        "-C",
+        str(repo_dir),
+        "fetch",
+        "origin",
+        "5678efgh",
+    ]
 
 
 @patch("uvault.vcs.subprocess.run")

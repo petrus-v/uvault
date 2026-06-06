@@ -61,9 +61,8 @@ class GitVcs(VcsProvider):
             subprocess.run(
                 ["git", "clone", "--bare", origin_url, str(repo_dir)], check=True
             )
-        else:
-            subprocess.run(["git", "-C", str(repo_dir), "fetch", "origin"], check=True)
-
+        print(f"fetching {sha} in {repo_dir}")
+        subprocess.run(["git", "-C", str(repo_dir), "fetch", "origin", sha], check=True)
         subprocess.run(
             [
                 "git",
