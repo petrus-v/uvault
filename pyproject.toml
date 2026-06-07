@@ -29,7 +29,7 @@ build-backend = "hatchling.build"
 uvault = "uvault.cli:main"
 
 [tool.pytest.ini_options]
-addopts = "--cov=src/uvault --cov-report=term-missing --cov-fail-under=100"
+addopts = ["--cov=src/uvault", "--cov-report=term-missing", "--cov-fail-under=100"]
 testpaths = ["tests"]
 
 [tool.ruff]

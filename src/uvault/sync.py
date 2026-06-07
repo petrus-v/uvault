@@ -56,7 +56,7 @@ class PackageSyncer:
 
         new_source = tomlkit.inline_table()
         new_source["git"] = vault_url
-        new_source["rev"] = tag_name
+        new_source["tag"] = tag_name
         if "subdirectory" in self.source_cfg:
             new_source["subdirectory"] = self.source_cfg["subdirectory"]
 
@@ -85,7 +85,7 @@ class PackageSyncer:
         path = f"{owner}/{repo_name}.git" if owner else f"{repo_name}.git"
 
         if ssh_only:
-            return f"git@{provider}:{path}"
+            return f"ssh://git@{provider}/{path}"
         else:
             return f"https://{provider}/{path}"
 

@@ -75,8 +75,8 @@ def test_sync_success(mock_run, temp_pyproject, tmp_path):
     assert "sources" in doc["tool"]["uv"]
     assert "my-addon" in doc["tool"]["uv"]["sources"]
     source = doc["tool"]["uv"]["sources"]["my-addon"]
-    assert source["git"] == "git@github.com:petrus-v/my-addon.git"
-    assert source["rev"] == "ppr-1234abcd"
+    assert source["git"] == "ssh://git@github.com/petrus-v/my-addon.git"
+    assert source["tag"] == "ppr-1234abcd"
     assert source["subdirectory"] == "my_addon"
 
     clone_call = [call for call in mock_run.call_args_list if "clone" in call.args[0]]
@@ -96,7 +96,7 @@ def test_sync_success(mock_run, temp_pyproject, tmp_path):
         "-C",
         str(cache_dir / "my-addon"),
         "push",
-        "git@github.com:petrus-v/my-addon.git",
+        "ssh://git@github.com/petrus-v/my-addon.git",
         "1234abcd:refs/tags/ppr-1234abcd",
     ]
 
@@ -220,13 +220,14 @@ def test_compute_vault_url():
         False,
     )
     assert (
-        syncer2._compute_vault_url("my-addon") == "git@github.com:petrus-v/my-addon.git"
+        syncer2._compute_vault_url("my-addon")
+        == "ssh://git@github.com/petrus-v/my-addon.git"
     )
 
     syncer3 = PackageSyncer(
         "pkg", {}, None, None, {"provider": "github.com", "ssh_only": True}, "", False
     )
-    assert syncer3._compute_vault_url("my-addon") == "git@github.com:my-addon.git"
+    assert syncer3._compute_vault_url("my-addon") == "ssh://git@github.com/my-addon.git"
 
 
 @patch("uvault.vcs.subprocess.run")
@@ -262,7 +263,7 @@ def test_sync_rev_is_already_sha(mock_run, temp_pyproject, tmp_path):
         doc = tomlkit.parse(f.read())
 
     assert (
-        doc["tool"]["uv"]["sources"]["my-addon"]["rev"]
+        doc["tool"]["uv"]["sources"]["my-addon"]["tag"]
         == "ppr-1234567890abcdef1234567890abcdef12345678"
     )
 
