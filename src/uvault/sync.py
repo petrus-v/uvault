@@ -1,7 +1,12 @@
 from pathlib import Path
-from urllib.parse import urlparse
 import tomlkit
-from uvault.vcs import GitVcs, VcsProvider, GitReference
+from uvault.vcs import (
+    GitVcs,
+    VcsProvider,
+    GitReference,
+    get_repo_name,
+    compute_vault_urls,
+)
 
 
 class PackageSyncer:
@@ -48,8 +53,10 @@ class PackageSyncer:
         if self.include_project_version and self.project_version:
             tag_name += f"{self.project_version}+"
         tag_name += sha
-        repo_name = self._get_repo_name(origin_git)
-        vault_fetch_url, vault_push_url = self._compute_vault_urls(repo_name)
+        repo_name = get_repo_name(origin_git)
+        vault_fetch_url, vault_push_url = compute_vault_urls(
+            repo_name, self.vault_config
+        )
 
         if not self.force_update and self.vcs.remote_tag_exists(
             vault_push_url, tag_name
@@ -72,40 +79,6 @@ class PackageSyncer:
             new_source["subdirectory"] = self.source_cfg["subdirectory"]
 
         return new_source
-
-    def _get_repo_name(self, git_url: str) -> str:
-        if git_url.startswith("git@"):
-            path = git_url.split(":")[-1]
-        elif git_url.startswith("ssh://"):
-            parsed = urlparse(git_url)
-            path = parsed.path
-        else:
-            parsed = urlparse(git_url)
-            path = parsed.path
-
-        repo_name = path.split("/")[-1]
-        if repo_name.endswith(".git"):
-            repo_name = repo_name[:-4]
-        return repo_name
-
-    def _compute_vault_urls(self, repo_name: str) -> tuple[str, str]:
-        provider = self.vault_config.get("provider", "github.com")
-        owner = self.vault_config.get("owner", "")
-        fetch_ssh = self.vault_config.get("fetch_ssh", False)
-        push_ssh = self.vault_config.get("push_ssh", True)
-
-        path = f"{owner}/{repo_name}.git" if owner else f"{repo_name}.git"
-
-        fetch_url = (
-            f"ssh://git@{provider}/{path}"
-            if fetch_ssh
-            else f"https://{provider}/{path}"
-        )
-        push_url = (
-            f"ssh://git@{provider}/{path}" if push_ssh else f"https://{provider}/{path}"
-        )
-
-        return fetch_url, push_url
 
 
 class SyncCommand:

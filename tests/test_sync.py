@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import tomlkit
 import subprocess
-from uvault.sync import SyncCommand, PackageSyncer
+from uvault.sync import SyncCommand
 
 
 @pytest.fixture
@@ -189,61 +189,6 @@ def test_sync_failed_to_resolve_sha(mock_run, temp_pyproject, tmp_path, capsys):
     assert cmd.run() == 0
     captured = capsys.readouterr()
     assert "Failed to resolve" in captured.out
-
-
-def test_get_repo_name():
-    syncer = PackageSyncer("pkg", {}, None, None, {}, "", False)
-    assert syncer._get_repo_name("https://github.com/OCA/social") == "social"
-    assert syncer._get_repo_name("git@github.com:OCA/social.git") == "social"
-    assert syncer._get_repo_name("ssh://git@github.com/OCA/social.git") == "social"
-
-
-def test_compute_vault_urls():
-    syncer1 = PackageSyncer(
-        "pkg",
-        {},
-        None,
-        None,
-        {
-            "provider": "gitlab.com",
-            "owner": "myorg",
-            "fetch_ssh": False,
-            "push_ssh": True,
-        },
-        "",
-        False,
-    )
-    assert syncer1._compute_vault_urls("repo") == (
-        "https://gitlab.com/myorg/repo.git",
-        "ssh://git@gitlab.com/myorg/repo.git",
-    )
-
-    syncer2 = PackageSyncer(
-        "pkg",
-        {},
-        None,
-        None,
-        {
-            "provider": "github.com",
-            "owner": "petrus-v",
-            "fetch_ssh": True,
-            "push_ssh": False,
-        },
-        "",
-        False,
-    )
-    assert syncer2._compute_vault_urls("my-addon") == (
-        "ssh://git@github.com/petrus-v/my-addon.git",
-        "https://github.com/petrus-v/my-addon.git",
-    )
-
-    syncer3 = PackageSyncer(
-        "pkg", {}, None, None, {"provider": "github.com", "fetch_ssh": True}, "", False
-    )
-    assert syncer3._compute_vault_urls("my-addon") == (
-        "ssh://git@github.com/my-addon.git",
-        "ssh://git@github.com/my-addon.git",
-    )
 
 
 @patch("uvault.vcs.subprocess.run")

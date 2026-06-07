@@ -39,3 +39,63 @@ def test_cli_sync_default(mock_sync):
 
     mock_sync.assert_called_once_with(packages=None, update=False)
     mock_instance.run.assert_called_once()
+
+
+@patch("uvault.cli.DevelopCommand")
+def test_cli_develop(mock_dev):
+    mock_instance = mock_dev.return_value
+    mock_instance.run.return_value = 0
+
+    assert main(["develop", "my-addon", "my-branch"]) == 0
+
+    mock_dev.assert_called_once_with(package="my-addon", branch="my-branch")
+    mock_instance.run.assert_called_once()
+
+
+@patch("uvault.cli.DevelopCommand")
+def test_cli_develop_default(mock_dev):
+    mock_instance = mock_dev.return_value
+    mock_instance.run.return_value = 0
+
+    assert main(["develop", "my-addon"]) == 0
+
+    mock_dev.assert_called_once_with(package="my-addon", branch=None)
+    mock_instance.run.assert_called_once()
+
+
+@patch("uvault.cli.AddCommand")
+def test_cli_add(mock_add):
+    mock_instance = mock_add.return_value
+    mock_instance.run.return_value = 0
+
+    assert (
+        main(
+            [
+                "add",
+                "my-addon",
+                "git+https://github.com",
+                "--pr",
+                "123",
+                "--branch",
+                "main",
+                "--tag",
+                "v1",
+                "--rev",
+                "abc",
+                "--subdirectory",
+                "sub",
+            ]
+        )
+        == 0
+    )
+
+    mock_add.assert_called_once_with(
+        package="my-addon",
+        url="git+https://github.com",
+        pr="123",
+        branch="main",
+        tag="v1",
+        rev="abc",
+        subdirectory="sub",
+    )
+    mock_instance.run.assert_called_once()
