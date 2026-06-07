@@ -27,7 +27,7 @@ def test_cli_sync(mock_sync):
     assert main(["sync", "--package", "my-addon", "--update", "--delete-extra"]) == 0
 
     mock_sync.assert_called_once_with(
-        packages=["my-addon"], update=True, delete_extra=True
+        packages=["my-addon"], update=True, delete_extra=True, keep_develop=False
     )
     mock_instance.run.assert_called_once()
 
@@ -39,7 +39,9 @@ def test_cli_sync_default(mock_sync):
 
     assert main(["sync"]) == 1
 
-    mock_sync.assert_called_once_with(packages=None, update=False, delete_extra=False)
+    mock_sync.assert_called_once_with(
+        packages=None, update=False, delete_extra=False, keep_develop=False
+    )
     mock_instance.run.assert_called_once()
 
 

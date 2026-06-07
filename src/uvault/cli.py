@@ -34,6 +34,11 @@ def main(argv=None):
         action="store_true",
         help="Delete references in uv.sources that are not in uvault.sources.",
     )
+    sync_parser.add_argument(
+        "--keep-develop",
+        action="store_true",
+        help="Keep packages that are in local develop mode instead of restoring them.",
+    )
 
     # Add command
     add_parser = subparsers.add_parser("add", help="Add a new vaulting intention.")
@@ -54,7 +59,10 @@ def main(argv=None):
 
     if args.command == "sync":
         cmd = SyncCommand(
-            packages=args.package, update=args.update, delete_extra=args.delete_extra
+            packages=args.package,
+            update=args.update,
+            delete_extra=args.delete_extra,
+            keep_develop=args.keep_develop,
         )
         return cmd.run()
     elif args.command == "develop":

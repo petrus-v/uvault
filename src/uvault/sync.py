@@ -90,12 +90,13 @@ class PackageSyncer:
 class SyncCommand:
     def __init__(
         self,
-        packages=None,
-        update=False,
-        delete_extra=False,
-        pyproject_path="pyproject.toml",
-        cache_dir="~/.cache/uvault/repos",
-        vcs=None,
+        packages: str | list[str] | None = None,
+        update: bool = False,
+        delete_extra: bool = False,
+        keep_develop: bool = False,
+        pyproject_path: str = "pyproject.toml",
+        cache_dir: str = "~/.cache/uvault",
+        vcs: VcsProvider | None = None,
     ):
         if isinstance(packages, str):
             self.packages = [packages]
@@ -103,6 +104,7 @@ class SyncCommand:
             self.packages = packages or []
         self.update = update
         self.delete_extra = delete_extra
+        self.keep_develop = keep_develop
         self.pyproject_path = Path(pyproject_path)
         self.cache_dir = Path(cache_dir).expanduser()
         self.vcs = vcs or GitVcs()
@@ -157,6 +159,27 @@ class SyncCommand:
 
             actual_source_key = normalized_sources[norm_pkg]
             force_update = self.update or norm_pkg in normalized_packages
+
+            is_develop = False
+            if norm_pkg in normalized_uv_sources:
+                uv_pkg_key = normalized_uv_sources[norm_pkg]
+                uv_pkg_cfg = uv_sources.get(uv_pkg_key)
+                if isinstance(uv_pkg_cfg, dict):
+                    is_develop = (
+                        uv_pkg_cfg.get("editable") is True or "path" in uv_pkg_cfg
+                    )
+
+            if is_develop:
+                if self.keep_develop:
+                    print(
+                        f"Package {pkg} is in develop mode. Skipping (--keep-develop is set)."
+                    )
+                    continue
+                else:
+                    force_update = True
+                    print(
+                        f"Package {pkg} is in develop mode. Restoring to vaulted state."
+                    )
 
             if norm_pkg in normalized_uv_sources and not force_update:
                 print(

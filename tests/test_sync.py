@@ -536,3 +536,59 @@ def test_git_reference_from_config():
     assert GitReference.from_config({"branch": "main"}).ref_type == "branch"
     assert GitReference.from_config({"rev": "123"}).ref_type == "rev"
     assert GitReference.from_config({}) is None
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_develop_restore(mock_run, temp_pyproject, tmp_path, capsys):
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    doc["tool"].add("uv", tomlkit.table())
+    doc["tool"]["uv"].add("sources", tomlkit.table())
+    doc["tool"]["uv"]["sources"]["my-addon"] = {
+        "path": "./src/my-addon",
+        "editable": True,
+    }
+    with open(temp_pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache")
+    assert cmd.run() == 0
+    captured = capsys.readouterr()
+    assert "Restoring to vaulted state" in captured.out
+
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    assert "git" in doc["tool"]["uv"]["sources"]["my-addon"]
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_develop_keep(mock_run, temp_pyproject, tmp_path, capsys):
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    doc["tool"].add("uv", tomlkit.table())
+    doc["tool"]["uv"].add("sources", tomlkit.table())
+    doc["tool"]["uv"]["sources"]["my-addon"] = {
+        "path": "./src/my-addon",
+        "editable": True,
+    }
+    with open(temp_pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    cmd = SyncCommand(
+        pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache", keep_develop=True
+    )
+    assert cmd.run() == 0
+    captured = capsys.readouterr()
+    assert "Skipping (--keep-develop is set)" in captured.out
+
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    assert "path" in doc["tool"]["uv"]["sources"]["my-addon"]

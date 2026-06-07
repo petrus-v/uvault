@@ -62,10 +62,11 @@ Synchronizes remote references to the vault repository and updates `[tool.uv.sou
 
 **Note:** By default, `uvault sync` will skip any package that is already declared in `[tool.uv.sources]`.
 
-**Options:**
-* `-P, --package <name>` : Synchronize only the specified package. Can be used multiple times. Implies `--update` for the specified packages.
-* `-U, --update` : Force update of the reference in the vault and in `[tool.uv.sources]` even if it already exists.
-* `--delete-extra` : Removes any package from `[tool.uv.sources]` that is not declared in `[tool.uvault.sources]`.
+**Flags:**
+* `-P <package>, --package <package>` : Only sync the specified package. Can be used multiple times.
+* `--update` : Forces an update of the package(s) even if they are already present in `[tool.uv.sources]`.
+* `--delete-extra` : Removes any package found in `[tool.uv.sources]` that is not declared in `[tool.uvault.sources]`.
+* `--keep-develop` : By default, packages in develop mode (`editable = true` or using `path`) are restored to their vaulted state during sync. Use this flag to keep them in develop mode.
 
 ### `uvault add`
 
