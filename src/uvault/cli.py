@@ -48,9 +48,7 @@ def main(argv=None):
     # Develop command
     dev_parser = subparsers.add_parser("develop", help="Develop a package locally.")
     dev_parser.add_argument("package", help="The package to develop")
-    dev_parser.add_argument(
-        "branch", nargs="?", help="Optional branch name to checkout"
-    )
+    dev_parser.add_argument("branch", help="Branch name to checkout or create")
 
     args = parser.parse_args(argv)
 

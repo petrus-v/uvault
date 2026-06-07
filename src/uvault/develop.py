@@ -8,7 +8,7 @@ class DevelopCommand:
     def __init__(
         self,
         package: str,
-        branch: str | None = None,
+        branch: str,
         pyproject_path: str = "pyproject.toml",
     ):
         self.package = package
@@ -58,13 +58,6 @@ class DevelopCommand:
 
         repo_name = get_repo_name(origin_url)
 
-        sha = None
-        if git_ref:
-            sha = self.vcs.get_remote_sha(origin_url, git_ref)
-            if not sha:
-                print(f"Could not resolve reference {git_ref.value} at {origin_url}")
-                return 1
-
         vaults = tool_uvault.get("vcs_vaults", [])
         if vaults:
             vault_config = next((v for v in vaults if v.get("default")), vaults[0])
@@ -78,37 +71,12 @@ class DevelopCommand:
             if not self.vcs.check_clean_state(dest_dir):
                 print(f"Error: {dest_dir} has uncommitted changes. Aborting.")
                 return 1
-
-            # Fetch origin
-            print("Fetching origin...")
-            if sha:
-                self.vcs.fetch_remote(dest_dir, ref=sha)
-            else:
-                self.vcs.fetch_remote(dest_dir)
-
-            # Checkout requested branch or ref
-            if self.branch:
-                self.vcs.checkout(dest_dir, self.branch, create_branch=True)
-            elif sha:
-                self.vcs.checkout(dest_dir, sha)
-
         else:
             print(f"Cloning {origin_url} into {dest_dir}...")
             dest_dir.parent.mkdir(parents=True, exist_ok=True)
-
             self.vcs.clone(origin_url, dest_dir)
 
-            if sha:
-                self.vcs.fetch_remote(dest_dir, ref=sha)
-
-            if self.branch:
-                # Create and checkout new branch
-                self.vcs.checkout(dest_dir, self.branch, create_branch=True)
-            elif sha:
-                self.vcs.checkout(dest_dir, sha)
-
         # Configure remotes
-        # Origin is already origin, but ensure it's correct
         self.vcs.set_remote(dest_dir, "origin", origin_url)
 
         if vault_push_url:
@@ -126,6 +94,13 @@ class DevelopCommand:
             )
             # just add the remote without fetching
             self.vcs.set_remote(dest_dir, remote_name, remote_url)
+
+        # Checkout requested branch or ref
+        if not self.vcs.checkout_reference(dest_dir, origin_url, git_ref, self.branch):
+            print(
+                f"Could not resolve reference {git_ref.value if git_ref else 'None'} at {origin_url}"
+            )
+            return 1
 
         if "uv" not in doc["tool"]:
             doc["tool"].add("uv", tomlkit.table())

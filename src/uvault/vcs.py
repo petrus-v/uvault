@@ -131,7 +131,9 @@ class VcsProvider(abc.ABC):
         pass  # pragma: no cover
 
     @abc.abstractmethod
-    def checkout(self, repo_dir: Path, ref: str, create_branch: bool = False) -> None:
+    def checkout_reference(
+        self, repo_dir: Path, origin_url: str, ref: GitReference | None, branch: str
+    ) -> bool:
         pass  # pragma: no cover
 
     @abc.abstractmethod
@@ -178,6 +180,21 @@ class GitVcs(VcsProvider):
             pass
         return False
 
+    def fetch_commit_from_reference(
+        self, repo_dir: Path, origin_url: str, ref: GitReference | str
+    ) -> str | None:
+        if isinstance(ref, GitReference):
+            sha = self.get_remote_sha(origin_url, ref)
+        else:
+            sha = ref
+
+        if not sha:
+            return None
+
+        print(f"fetching {sha} in {repo_dir}")
+        self.fetch_remote(repo_dir, "origin", sha)
+        return sha
+
     def vault_reference(
         self, origin_url: str, sha: str, vault_url: str, tag_name: str, repo_dir: Path
     ) -> None:
@@ -185,8 +202,7 @@ class GitVcs(VcsProvider):
             subprocess.run(
                 ["git", "clone", "--bare", origin_url, str(repo_dir)], check=True
             )
-        print(f"fetching {sha} in {repo_dir}")
-        subprocess.run(["git", "-C", str(repo_dir), "fetch", "origin", sha], check=True)
+        self.fetch_commit_from_reference(repo_dir, origin_url, sha)
         subprocess.run(
             [
                 "git",
@@ -215,19 +231,47 @@ class GitVcs(VcsProvider):
             args.append(ref)
         subprocess.run(args, check=True)
 
-    def checkout(self, repo_dir: Path, ref: str, create_branch: bool = False) -> None:
-        args = ["git", "-C", str(repo_dir), "checkout"]
-        if create_branch:
-            args.append("-b")
-        args.append(ref)
-        subprocess.run(args, check=True)
+    def checkout_reference(
+        self, repo_dir: Path, origin_url: str, ref: GitReference | None, branch: str
+    ) -> bool:
+        if not ref:
+            print("Error: No VCS reference provided.")
+            return False
+
+        sha = self.fetch_commit_from_reference(repo_dir, origin_url, ref)
+        if not sha:
+            return False
+
+        res = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_dir),
+                "show-ref",
+                "--verify",
+                "--quiet",
+                f"refs/heads/{branch}",
+            ]
+        )
+        if res.returncode == 0:
+            print(f"Switching to existing branch '{branch}'")
+            subprocess.run(["git", "-C", str(repo_dir), "checkout", branch], check=True)
+        else:
+            print(f"Creating and switching to new branch '{branch}' from {sha}")
+            subprocess.run(
+                ["git", "-C", str(repo_dir), "checkout", "-b", branch, sha], check=True
+            )
+        return True
 
     def clone(self, url: str, dest: Path) -> None:
-        subprocess.run(["git", "clone", url, str(dest)], check=True)
+        subprocess.run(
+            ["git", "clone", "--filter=blob:none", url, str(dest)], check=True
+        )
 
     def set_remote(self, repo_dir: Path, name: str, url: str) -> None:
         subprocess.run(
             ["git", "-C", str(repo_dir), "remote", "add", name, url],
+            check=False,
             capture_output=True,
         )
         subprocess.run(

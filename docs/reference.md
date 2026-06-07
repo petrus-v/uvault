@@ -44,6 +44,16 @@ default = true                          # (Optional) Marks this vault as the def
 my-package = { git = "https://github.com/OCA/repository", rev = "refs/pull/100/head", subdirectory = "my_package" }
 ```
 
+## User Configuration
+
+You can define local machine-specific configurations, such as custom git remotes, in `~/.config/uvault/config.toml`. These remotes will be automatically added to the repository when running `uvault develop`.
+
+```toml
+[remotes]
+myorg = "https://gitlab.com/myorg/"
+perso = "ssh://git@github.com/personal/"
+```
+
 ## CLI Commands
 
 ### `uvault sync`
@@ -78,11 +88,11 @@ Switches a vaulted dependency into local editable mode for active development.
 
 **Arguments:**
 * `<package>` : The name of the package to develop locally (must be declared in `[tool.uvault.sources]`).
-* `[branch]` : (Optional) The name of a new branch to create locally and checkout immediately.
+* `<branch>` : The name of the branch to checkout or create.
 
 **Workflow Details:**
-1. Clones or fetches the repository into your `.src/` directory.
-2. If `branch` is provided, creates and checks out the new branch (`git checkout -b <branch>`).
+1. Clones (using a fast partial blobless clone) or fetches the repository into your `.src/` directory.
+2. Creates and checks out the new branch (`git checkout -b <branch>`), or switches to it if it exists (`git checkout <branch>`).
 3. Sets up remotes, including `origin`, `vault`, and any other custom remotes defined in `~/.config/uvault/config.toml`.
 4. Modifies `[tool.uv.sources]` to use `{ path = "./.src/<package>", editable = true }`.
 

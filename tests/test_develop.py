@@ -81,7 +81,9 @@ def test_compute_vault_urls():
 
 def test_develop_no_pyproject(tmp_path, capsys):
     cmd = DevelopCommand(
-        package="my-addon", pyproject_path=tmp_path / "nonexistent.toml"
+        package="my-addon",
+        branch="my-branch",
+        pyproject_path=tmp_path / "nonexistent.toml",
     )
     assert cmd.run() == 1
     captured = capsys.readouterr()
@@ -112,6 +114,7 @@ def test_develop_success_with_config(mock_run, mock_get_sha, temp_pyproject, tmp
     assert clone_call[0].args[0] == [
         "git",
         "clone",
+        "--filter=blob:none",
         "https://github.com/OCA/my-addon",
         str(tmp_path / ".src" / "my-addon"),
     ]
@@ -127,6 +130,7 @@ def test_develop_success_with_config(mock_run, mock_get_sha, temp_pyproject, tmp
         "checkout",
         "-b",
         "my-branch",
+        "abcdef123",
     ]
 
     remote_adds = [
@@ -148,34 +152,20 @@ def test_develop_success_with_config(mock_run, mock_get_sha, temp_pyproject, tmp
     assert doc["tool"]["uv"]["sources"]["my-addon"]["subdirectory"] == "my_addon"
 
 
-@patch("uvault.develop.GitVcs.get_remote_sha", return_value="abcdef123")
-@patch("uvault.vcs.subprocess.run")
-def test_develop_success_no_branch(mock_run, mock_get_sha, temp_pyproject, tmp_path):
-    cmd = DevelopCommand(package="my-addon", pyproject_path=temp_pyproject)
-    assert cmd.run() == 0
-
-    checkout_call = [
-        call for call in mock_run.call_args_list if "checkout" in call.args[0]
-    ]
-    assert len(checkout_call) == 1
-    assert checkout_call[0].args[0] == [
-        "git",
-        "-C",
-        str(tmp_path / ".src" / "my-addon"),
-        "checkout",
-        "abcdef123",
-    ]
-
-
 def test_develop_not_found(temp_pyproject, capsys):
-    cmd = DevelopCommand(package="unknown", pyproject_path=temp_pyproject)
+    cmd = DevelopCommand(
+        package="unknown", branch="my-branch", pyproject_path=temp_pyproject
+    )
     assert cmd.run() == 1
     assert "Could not find configuration" in capsys.readouterr().out
 
 
+@patch("uvault.vcs.subprocess.run")
 @patch("uvault.develop.GitVcs.get_remote_sha", return_value=None)
-def test_develop_resolve_fails(mock_get_sha, temp_pyproject, capsys):
-    cmd = DevelopCommand(package="my-addon", pyproject_path=temp_pyproject)
+def test_develop_resolve_fails(mock_get_sha, mock_run, temp_pyproject, capsys):
+    cmd = DevelopCommand(
+        package="my-addon", branch="my-branch", pyproject_path=temp_pyproject
+    )
     assert cmd.run() == 1
     assert "Could not resolve reference refs/pull/123/head" in capsys.readouterr().out
 
@@ -201,11 +191,12 @@ def test_develop_dir_exists_no_ref(mock_run, tmp_path):
 
     mock_run.side_effect = mock_run_side_effect
 
-    cmd = DevelopCommand(package="my-addon", pyproject_path=pyproject_file)
-    assert cmd.run() == 0
+    cmd = DevelopCommand(
+        package="my-addon", branch="my-branch", pyproject_path=pyproject_file
+    )
+    assert cmd.run() == 1
     fetch_call = [call for call in mock_run.call_args_list if "fetch" in call.args[0]]
-    assert len(fetch_call) == 1
-    assert fetch_call[0].args[0] == ["git", "-C", str(dest_dir), "fetch", "origin"]
+    assert len(fetch_call) == 0
 
 
 @patch("uvault.vcs.subprocess.run")
@@ -253,37 +244,6 @@ def test_develop_dir_exists_clean(mock_run, mock_get_sha, temp_pyproject, tmp_pa
         "checkout",
         "-b",
         "some-branch",
-    ]
-
-
-@patch("uvault.develop.GitVcs.get_remote_sha", return_value="abcdef123")
-@patch("uvault.vcs.subprocess.run")
-def test_develop_dir_exists_clean_no_branch(
-    mock_run, mock_get_sha, temp_pyproject, tmp_path
-):
-    dest_dir = tmp_path / ".src" / "my-addon"
-    dest_dir.parent.mkdir(parents=True, exist_ok=True)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-
-    def mock_run_side_effect(*args, **kwargs):
-        m = MagicMock()
-        m.stdout = ""  # clean status
-        return m
-
-    mock_run.side_effect = mock_run_side_effect
-
-    cmd = DevelopCommand(package="my-addon", pyproject_path=temp_pyproject)
-    assert cmd.run() == 0
-
-    checkout_call = [
-        call for call in mock_run.call_args_list if "checkout" in call.args[0]
-    ]
-    assert len(checkout_call) == 1
-    assert checkout_call[0].args[0] == [
-        "git",
-        "-C",
-        str(dest_dir),
-        "checkout",
         "abcdef123",
     ]
 
@@ -301,7 +261,9 @@ def test_develop_no_tool_uv(mock_run, mock_get_sha, tmp_path):
     """
     pyproject_file.write_text(content)
 
-    cmd = DevelopCommand(package="my-addon", pyproject_path=pyproject_file)
+    cmd = DevelopCommand(
+        package="my-addon", branch="my-branch", pyproject_path=pyproject_file
+    )
     assert cmd.run() == 0
     with open(pyproject_file) as f:
         doc = tomlkit.parse(f.read())
@@ -326,13 +288,15 @@ def test_develop_dir_exists_dirty(
 
     mock_run.side_effect = mock_run_side_effect
 
-    cmd = DevelopCommand(package="my-addon", pyproject_path=temp_pyproject)
+    cmd = DevelopCommand(
+        package="my-addon", branch="my-branch", pyproject_path=temp_pyproject
+    )
     assert cmd.run() == 1
     assert "uncommitted changes" in capsys.readouterr().out
 
 
 def test_read_user_config(tmp_path):
-    cmd = DevelopCommand("test")
+    cmd = DevelopCommand("test", "my-branch")
     # By default reads from ~/.config/uvault/config.toml
     # We mock it to ensure coverage
     with patch("uvault.develop.Path.expanduser", return_value=tmp_path / "config.toml"):
@@ -355,3 +319,44 @@ def test_read_user_config(tmp_path):
         (tmp_path / "invalid.toml").write_text("trust_guessed_urls = true\ninvalid")
         cfg = cmd._read_user_config()
         assert cfg == {}
+
+
+@patch("uvault.develop.GitVcs.get_remote_sha", return_value="abcdef123")
+@patch("uvault.vcs.subprocess.run")
+def test_develop_ref_branch_exists(mock_run, mock_get_sha, tmp_path):
+    pyproject_file = tmp_path / "pyproject.toml"
+    content = """
+    [tool.uvault]
+    [tool.uvault.sources]
+    my-addon = { git = "https://github.com/OCA/my-addon", rev = "abcdef123" }
+    """
+    pyproject_file.write_text(content)
+    dest_dir = tmp_path / ".src" / "my-addon"
+    dest_dir.parent.mkdir(parents=True, exist_ok=True)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    def mock_run_side_effect(*args, **kwargs):
+        m = MagicMock()
+        m.stdout = ""
+        if "show-ref" in args[0]:
+            m.returncode = 0
+        else:
+            m.returncode = 0
+        return m
+
+    mock_run.side_effect = mock_run_side_effect
+    cmd = DevelopCommand(
+        package="my-addon", pyproject_path=pyproject_file, branch="some-branch"
+    )
+    assert cmd.run() == 0
+    checkout_call = [
+        call for call in mock_run.call_args_list if "checkout" in call.args[0]
+    ]
+    assert len(checkout_call) == 1
+    assert checkout_call[0].args[0] == [
+        "git",
+        "-C",
+        str(dest_dir),
+        "checkout",
+        "some-branch",
+    ]

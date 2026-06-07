@@ -54,15 +54,12 @@ def test_cli_develop(mock_dev):
     mock_instance.run.assert_called_once()
 
 
-@patch("uvault.cli.DevelopCommand")
-def test_cli_develop_default(mock_dev):
-    mock_instance = mock_dev.return_value
-    mock_instance.run.return_value = 0
-
-    assert main(["develop", "my-addon"]) == 0
-
-    mock_dev.assert_called_once_with(package="my-addon", branch=None)
-    mock_instance.run.assert_called_once()
+def test_cli_develop_missing_branch(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["develop", "my-addon"])
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert "the following arguments are required: branch" in captured.err
 
 
 @patch("uvault.cli.AddCommand")

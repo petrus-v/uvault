@@ -37,6 +37,6 @@ uv lock
 Need to edit the dependency? Clone it instantly and set it as an editable dependency in `[tool.uv.sources]`.
 
 ```bash
-uvault develop my-addon
+uvault develop my-package feat-branch
 uv sync
 ```

@@ -69,18 +69,14 @@ uvault sync -P my-addon -P another-addon
 When you need to make modifications to a vaulted dependency, you can switch it into local editable mode in seconds.
 
 ```bash
-uvault develop my-addon
+uvault develop my-addon my-feature-branch
 ```
 
 This command will:
 1. Clone the repository into your local workspace (e.g., `./.src/my-addon`).
 2. Automatically configure your custom vault remotes (defined in `~/.config/uvault/config.toml`) so you can push your work easily.
 3. Replace the remote reference in `[tool.uv.sources]` with a local, editable path (`editable = true`).
-
-You can optionally request `uvault` to create and checkout a new branch for your work:
-```bash
-uvault develop my-addon my-feature-branch
-```
+4. Creates and checks out the new branch (`git checkout -b <branch>`), or simply switches to it if it already exists.
 
 **Crucial Step:** Once the local path is set, make sure to synchronize your environment:
 ```bash
