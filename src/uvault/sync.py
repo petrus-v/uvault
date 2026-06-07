@@ -134,23 +134,7 @@ class SyncCommand:
         sources = tool_uvault.get("sources", {})
 
         if "uv" not in doc["tool"]:
-            uv_table = tomlkit.table()
-            uv_table.add("sources", tomlkit.table())
-            tool_table = doc["tool"]
-            tool_table.add("uv", uv_table)
-
-            body = getattr(tool_table.value, "_body", [])
-            uv_idx = -1
-            uvault_idx = -1
-            for i, (k, v) in enumerate(body):
-                if k and getattr(k, "key", None) == "uv":
-                    uv_idx = i
-                if k and getattr(k, "key", None) == "uvault":
-                    uvault_idx = i
-
-            if uvault_idx != -1 and uv_idx != -1 and uv_idx > uvault_idx:
-                item = body.pop(uv_idx)
-                body.insert(uvault_idx + 1, item)
+            doc["tool"].add("uv", tomlkit.table())
 
         if "sources" not in doc["tool"]["uv"]:
             doc["tool"]["uv"].add("sources", tomlkit.table())
