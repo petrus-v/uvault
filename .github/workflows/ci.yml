@@ -24,6 +24,11 @@ jobs:
       - name: Run tests and coverage
         run: uv run --frozen pytest
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   pre-commit:
     runs-on: ubuntu-latest
     steps:
