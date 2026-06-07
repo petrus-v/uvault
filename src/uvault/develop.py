@@ -87,11 +87,7 @@ class DevelopCommand:
         for remote_name, remote_prefix in remotes.items():
             if remote_name in ("origin", "vault"):
                 continue
-            remote_url = (
-                f"{remote_prefix}{repo_name}.git"
-                if not remote_prefix.endswith("/")
-                else f"{remote_prefix}{repo_name}.git"
-            )
+            remote_url = f"{remote_prefix.rstrip('/')}/{repo_name}.git"
             # just add the remote without fetching
             self.vcs.set_remote(dest_dir, remote_name, remote_url)
 
@@ -111,7 +107,7 @@ class DevelopCommand:
 
         new_source = tomlkit.inline_table()
         # Compute relative path
-        rel_path = f"./{dev_directory}/{self.package}"
+        rel_path = f"./{dev_directory.rstrip('/')}/{self.package}"
         new_source["path"] = rel_path
         if subdirectory:
             new_source["subdirectory"] = subdirectory
