@@ -14,6 +14,8 @@ class PackageSyncer:
         vault_config: dict,
         tag_prefix: str,
         force_update: bool,
+        project_version: str | None = None,
+        include_project_version: bool = True,
     ):
         self.pkg = pkg
         self.source_cfg = source_cfg
@@ -22,6 +24,8 @@ class PackageSyncer:
         self.vault_config = vault_config
         self.tag_prefix = tag_prefix
         self.force_update = force_update
+        self.project_version = project_version
+        self.include_project_version = include_project_version
 
     def process(self) -> dict | None:
         origin_git = self.source_cfg.get("git")
@@ -40,7 +44,10 @@ class PackageSyncer:
             print(f"Failed to resolve {origin_rev} in {origin_git}")
             return None
 
-        tag_name = f"{self.tag_prefix}{sha}"
+        tag_name = self.tag_prefix
+        if self.include_project_version and self.project_version:
+            tag_name += f"{self.project_version}-"
+        tag_name += sha
         repo_name = self._get_repo_name(origin_git)
         vault_url = self._compute_vault_url(repo_name)
 
@@ -118,13 +125,16 @@ class SyncCommand:
             print("No [tool.uvault] section in pyproject.toml")
             return 1
 
-        tag_prefix = tool_uvault.get("tag_prefix", "ppr-")
+        tag_prefix = tool_uvault.get("tag_prefix", "")
         vaults = tool_uvault.get("vcs_vaults", [])
         if not vaults:
             print("No [[tool.uvault.vcs_vaults]] configured.")
             return 1
 
         vault_config = next((v for v in vaults if v.get("default")), vaults[0])
+
+        project_version = doc.get("project", {}).get("version")
+        include_project_version = tool_uvault.get("include_project_version", True)
 
         sources = tool_uvault.get("sources", {})
 
@@ -154,6 +164,8 @@ class SyncCommand:
                 vault_config=vault_config,
                 tag_prefix=tag_prefix,
                 force_update=force_update,
+                project_version=project_version,
+                include_project_version=include_project_version,
             )
 
             new_source = syncer.process()

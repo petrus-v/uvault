@@ -141,7 +141,7 @@ def test_sync_tag_exists_no_update(mock_run, temp_pyproject, tmp_path, capsys):
             if "https://github.com/OCA/my-addon" in args[0]:
                 mock_result.stdout = "1234abcd refs/pull/123/head\n"
             else:
-                mock_result.stdout = "1234abcd refs/tags/ppr-1234abcd\n"
+                mock_result.stdout = "1234abcd refs/tags/0.0.0+ppr-1234abcd\n"
         return mock_result
 
     mock_run.side_effect = mock_run_side_effect
@@ -163,7 +163,7 @@ def test_sync_tag_exists_with_update(mock_run, temp_pyproject, tmp_path):
             if "https://github.com/OCA/my-addon" in args[0]:
                 mock_result.stdout = "1234abcd refs/pull/123/head\n"
             else:
-                mock_result.stdout = "1234abcd refs/tags/ppr-1234abcd\n"
+                mock_result.stdout = "1234abcd refs/tags/0.0.0+ppr-1234abcd\n"
         return mock_result
 
     mock_run.side_effect = mock_run_side_effect
@@ -264,7 +264,7 @@ def test_sync_rev_is_already_sha(mock_run, temp_pyproject, tmp_path):
 
     assert (
         doc["tool"]["uv"]["sources"]["my-addon"]["tag"]
-        == "ppr-1234567890abcdef1234567890abcdef12345678"
+        == "1234567890abcdef1234567890abcdef12345678"
     )
 
 
@@ -300,7 +300,9 @@ def test_sync_specific_package_implies_update(mock_run, temp_pyproject, tmp_path
             if "https://github.com/OCA/my-addon" in args[0]:
                 mock_result.stdout = "1234abcd refs/pull/123/head\n"
             else:
-                mock_result.stdout = "1234abcd refs/tags/ppr-1234abcd\n"  # tag exists
+                mock_result.stdout = (
+                    "1234abcd refs/tags/0.0.0+ppr-1234abcd\n"  # tag exists
+                )
         return mock_result
 
     mock_run.side_effect = mock_run_side_effect
@@ -316,3 +318,81 @@ def test_sync_specific_package_implies_update(mock_run, temp_pyproject, tmp_path
     # It should push despite the tag existing
     push_call = [call for call in mock_run.call_args_list if "push" in call.args[0]]
     assert len(push_call) == 1
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_include_project_version(mock_run, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    content = """
+    [project]
+    version = "19.0.0.1.0"
+    [tool.uvault]
+    tag_prefix = "apycod-"
+    include_project_version = true
+    [[tool.uvault.vcs_vaults]]
+    provider = "github.com"
+    owner = "petrus-v"
+
+    [tool.uvault.sources]
+    my-addon = { git = "https://github.com/OCA/my-addon", rev = "12345678" }
+    """
+    pyproject.write_text(content)
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            if "https://github.com/OCA/my-addon" in args[0]:
+                mock_result.stdout = "12345678 refs/pull/123/head\n"
+            else:
+                raise subprocess.CalledProcessError(1, args[0])
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(pyproject_path=pyproject, cache_dir=tmp_path / "cache")
+    assert cmd.run() == 0
+
+    with open(pyproject) as f:
+        doc = tomlkit.parse(f.read())
+
+    assert (
+        doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "apycod-19.0.0.1.0-12345678"
+    )
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_include_project_version_false(mock_run, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    content = """
+    [project]
+    version = "19.0.0.1.0"
+    [tool.uvault]
+    tag_prefix = "apycod-"
+    include_project_version = false
+    [[tool.uvault.vcs_vaults]]
+    provider = "github.com"
+    owner = "petrus-v"
+
+    [tool.uvault.sources]
+    my-addon = { git = "https://github.com/OCA/my-addon", rev = "12345678" }
+    """
+    pyproject.write_text(content)
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            if "https://github.com/OCA/my-addon" in args[0]:
+                mock_result.stdout = "12345678 refs/pull/123/head\n"
+            else:
+                raise subprocess.CalledProcessError(1, args[0])
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(pyproject_path=pyproject, cache_dir=tmp_path / "cache")
+    assert cmd.run() == 0
+
+    with open(pyproject) as f:
+        doc = tomlkit.parse(f.read())
+
+    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "apycod-12345678"
