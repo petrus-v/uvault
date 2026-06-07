@@ -147,9 +147,11 @@ def test_develop_success_with_config(mock_run, mock_get_sha, temp_pyproject, tmp
     with open(temp_pyproject) as f:
         doc = tomlkit.parse(f.read())
 
-    assert doc["tool"]["uv"]["sources"]["my-addon"]["path"] == "./.src/my-addon"
+    assert (
+        doc["tool"]["uv"]["sources"]["my-addon"]["path"] == "./.src/my-addon/my_addon"
+    )
     assert doc["tool"]["uv"]["sources"]["my-addon"]["editable"] is True
-    assert doc["tool"]["uv"]["sources"]["my-addon"]["subdirectory"] == "my_addon"
+    assert "subdirectory" not in doc["tool"]["uv"]["sources"]["my-addon"]
 
 
 def test_develop_not_found(temp_pyproject, capsys):

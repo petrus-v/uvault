@@ -108,9 +108,9 @@ class DevelopCommand:
         new_source = tomlkit.inline_table()
         # Compute relative path
         rel_path = f"./{dev_directory.rstrip('/')}/{self.package}"
-        new_source["path"] = rel_path
         if subdirectory:
-            new_source["subdirectory"] = subdirectory
+            rel_path = f"{rel_path}/{subdirectory}"
+        new_source["path"] = rel_path
         new_source["editable"] = True
 
         uv_sources[self.package] = new_source
