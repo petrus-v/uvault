@@ -19,12 +19,12 @@ By installing it within your project's environment, `uvault` gains access to the
 Instead of manually editing the `pyproject.toml` file, use the `uvault add` command to declare an intention in `[tool.uvault.sources]`.
 
 ```bash
-uvault add my-addon https://github.com/OCA/my-addon --pr 123 --subdirectory my_addon
+uvault add my-package https://github.com/OCA/my-repo --pr 123 --subdirectory my_package
 ```
 
 If the repository URL is already known (published package), you can omit it and `uvault` will try to guess it from the package metadata:
 ```bash
-uvault add my-addon --branch 16.0
+uvault add my-package --branch 16.0
 ```
 
 *Note: This command only configures your intention. It does not update your `uv` lockfile.*
