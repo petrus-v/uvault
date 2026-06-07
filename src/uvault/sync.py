@@ -1,5 +1,6 @@
 from pathlib import Path
 import tomlkit
+import re
 from uvault.vcs import (
     GitVcs,
     VcsProvider,
@@ -7,6 +8,11 @@ from uvault.vcs import (
     get_repo_name,
     compute_vault_urls,
 )
+
+
+def normalize_pkg_name(name: str) -> str:
+    """Normalize a Python package name for comparison."""
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
 class PackageSyncer:
@@ -91,7 +97,10 @@ class SyncCommand:
         cache_dir="~/.cache/uvault/repos",
         vcs=None,
     ):
-        self.packages = packages or []
+        if isinstance(packages, str):
+            self.packages = [packages]
+        else:
+            self.packages = packages or []
         self.update = update
         self.delete_extra = delete_extra
         self.pyproject_path = Path(pyproject_path)
@@ -152,22 +161,28 @@ class SyncCommand:
 
         has_changes = False
 
+        normalized_sources = {normalize_pkg_name(k): k for k in sources.keys()}
+        normalized_uv_sources = {normalize_pkg_name(k): k for k in uv_sources.keys()}
+        normalized_packages = {normalize_pkg_name(p) for p in self.packages}
+
         for pkg in packages_to_sync:
-            if pkg not in sources:
+            norm_pkg = normalize_pkg_name(pkg)
+            if norm_pkg not in normalized_sources:
                 print(f"Package {pkg} not found in [tool.uvault.sources]")
                 continue
 
-            force_update = self.update or (self.packages and pkg in self.packages)
+            actual_source_key = normalized_sources[norm_pkg]
+            force_update = self.update or norm_pkg in normalized_packages
 
-            if pkg in uv_sources and not force_update:
+            if norm_pkg in normalized_uv_sources and not force_update:
                 print(
                     f"Package {pkg} is already in [tool.uv.sources]. Skipping (use --update to force)."
                 )
                 continue
 
             syncer = PackageSyncer(
-                pkg=pkg,
-                source_cfg=sources[pkg],
+                pkg=actual_source_key,
+                source_cfg=sources[actual_source_key],
                 vcs=self.vcs,
                 cache_dir=self.cache_dir,
                 vault_config=vault_config,
@@ -179,14 +194,22 @@ class SyncCommand:
 
             new_source = syncer.process()
             if new_source is not None:
-                uv_sources[pkg] = new_source
+                # Remove the old unnormalized key from uv_sources if it exists
+                if (
+                    norm_pkg in normalized_uv_sources
+                    and normalized_uv_sources[norm_pkg] != actual_source_key
+                ):
+                    del uv_sources[normalized_uv_sources[norm_pkg]]
+
+                uv_sources[actual_source_key] = new_source
+                normalized_uv_sources[norm_pkg] = actual_source_key
                 has_changes = True
 
         if self.delete_extra:
-            for pkg in list(uv_sources.keys()):
-                if pkg not in sources:
-                    del uv_sources[pkg]
-                    print(f"Removed extra package {pkg} from [tool.uv.sources].")
+            for uv_pkg in list(uv_sources.keys()):
+                if normalize_pkg_name(uv_pkg) not in normalized_sources:
+                    del uv_sources[uv_pkg]
+                    print(f"Removed extra package {uv_pkg} from [tool.uv.sources].")
                     has_changes = True
 
         if has_changes:

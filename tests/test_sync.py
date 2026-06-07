@@ -220,6 +220,49 @@ def test_sync_uv_no_sources(mock_run, tmp_path):
     assert cmd.run() == 0
 
 
+def test_sync_package_string(tmp_path):
+    cmd = SyncCommand(pyproject_path=tmp_path / "nonexistent", packages="odoo")
+    assert cmd.packages == ["odoo"]
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_normalization_replacement(mock_run, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    content = """
+    [tool.uvault]
+    tag_prefix = "ppr-"
+    [[tool.uvault.vcs_vaults]]
+    provider = "github.com"
+    owner = "petrus-v"
+
+    [tool.uvault.sources]
+    odoo_addon_truc = { git = "https://github.com/OCA/truc", rev = "123" }
+
+    [tool.uv.sources]
+    odoo-addon-truc = { git = "old-url" }
+    """
+    pyproject.write_text(content)
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(
+        pyproject_path=pyproject, cache_dir=tmp_path / "cache", update=True
+    )
+    assert cmd.run() == 0
+
+    with open(pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+
+    assert "odoo_addon_truc" in doc["tool"]["uv"]["sources"]
+    assert "odoo-addon-truc" not in doc["tool"]["uv"]["sources"]
+
+
 @patch("uvault.vcs.subprocess.run")
 def test_sync_cache_exists(mock_run, temp_pyproject, tmp_path):
     def mock_run_side_effect(*args, **kwargs):
