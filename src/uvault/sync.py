@@ -46,7 +46,7 @@ class PackageSyncer:
 
         tag_name = self.tag_prefix
         if self.include_project_version and self.project_version:
-            tag_name += f"{self.project_version}-"
+            tag_name += f"{self.project_version}+"
         tag_name += sha
         repo_name = self._get_repo_name(origin_git)
         vault_url = self._compute_vault_url(repo_name)

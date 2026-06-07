@@ -356,7 +356,7 @@ def test_sync_include_project_version(mock_run, tmp_path):
         doc = tomlkit.parse(f.read())
 
     assert (
-        doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "apycod-19.0.0.1.0-12345678"
+        doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "apycod-19.0.0.1.0+12345678"
     )
 
 
