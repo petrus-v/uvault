@@ -188,5 +188,6 @@ class SyncCommand:
             with open(self.pyproject_path, "w", encoding="utf-8") as f:
                 f.write(tomlkit.dumps(doc))
             print("Updated pyproject.toml")
+            print("Please run `uv sync` or `uv lock` to update your uv.lock file.")
 
         return 0
