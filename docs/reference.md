@@ -14,7 +14,8 @@ dev_directory = ".src/"                 # (Optional) Directory for developed sou
 [[tool.uvault.vcs_vaults]]
 provider = "github.com"                 # (Required) The git hosting provider (e.g., "github.com" or "gitlab.com").
 owner = "petrus-v"                      # (Optional) The user or organization owning the vault repository.
-ssh_only = true                         # (Optional) If true, generates ssh:// URLs instead of https://. Defaults to false.
+fetch_ssh = true                        # (Optional) If true, generates ssh:// URLs in [tool.uv.sources] instead of https://. Defaults to false.
+push_ssh = true                         # (Optional) If true, pushes tags to the vault using ssh://. Defaults to true.
 default = true                          # (Optional) Marks this vault as the default for synchronizing packages.
 
 # Declaration of dependencies to synchronize

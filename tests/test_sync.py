@@ -75,7 +75,7 @@ def test_sync_success(mock_run, temp_pyproject, tmp_path):
     assert "sources" in doc["tool"]["uv"]
     assert "my-addon" in doc["tool"]["uv"]["sources"]
     source = doc["tool"]["uv"]["sources"]["my-addon"]
-    assert source["git"] == "ssh://git@github.com/petrus-v/my-addon.git"
+    assert source["git"] == "https://github.com/petrus-v/my-addon.git"
     assert source["tag"] == "ppr-1234abcd"
     assert source["subdirectory"] == "my_addon"
 
@@ -198,36 +198,52 @@ def test_get_repo_name():
     assert syncer._get_repo_name("ssh://git@github.com/OCA/social.git") == "social"
 
 
-def test_compute_vault_url():
+def test_compute_vault_urls():
     syncer1 = PackageSyncer(
         "pkg",
         {},
         None,
         None,
-        {"provider": "gitlab.com", "owner": "myorg", "ssh_only": False},
+        {
+            "provider": "gitlab.com",
+            "owner": "myorg",
+            "fetch_ssh": False,
+            "push_ssh": True,
+        },
         "",
         False,
     )
-    assert syncer1._compute_vault_url("repo") == "https://gitlab.com/myorg/repo.git"
+    assert syncer1._compute_vault_urls("repo") == (
+        "https://gitlab.com/myorg/repo.git",
+        "ssh://git@gitlab.com/myorg/repo.git",
+    )
 
     syncer2 = PackageSyncer(
         "pkg",
         {},
         None,
         None,
-        {"provider": "github.com", "owner": "petrus-v", "ssh_only": True},
+        {
+            "provider": "github.com",
+            "owner": "petrus-v",
+            "fetch_ssh": True,
+            "push_ssh": False,
+        },
         "",
         False,
     )
-    assert (
-        syncer2._compute_vault_url("my-addon")
-        == "ssh://git@github.com/petrus-v/my-addon.git"
+    assert syncer2._compute_vault_urls("my-addon") == (
+        "ssh://git@github.com/petrus-v/my-addon.git",
+        "https://github.com/petrus-v/my-addon.git",
     )
 
     syncer3 = PackageSyncer(
-        "pkg", {}, None, None, {"provider": "github.com", "ssh_only": True}, "", False
+        "pkg", {}, None, None, {"provider": "github.com", "fetch_ssh": True}, "", False
     )
-    assert syncer3._compute_vault_url("my-addon") == "ssh://git@github.com/my-addon.git"
+    assert syncer3._compute_vault_urls("my-addon") == (
+        "ssh://git@github.com/my-addon.git",
+        "ssh://git@github.com/my-addon.git",
+    )
 
 
 @patch("uvault.vcs.subprocess.run")

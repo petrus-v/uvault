@@ -49,20 +49,24 @@ class PackageSyncer:
             tag_name += f"{self.project_version}+"
         tag_name += sha
         repo_name = self._get_repo_name(origin_git)
-        vault_url = self._compute_vault_url(repo_name)
+        vault_fetch_url, vault_push_url = self._compute_vault_urls(repo_name)
 
-        if not self.force_update and self.vcs.remote_tag_exists(vault_url, tag_name):
+        if not self.force_update and self.vcs.remote_tag_exists(
+            vault_push_url, tag_name
+        ):
             print(
-                f"Tag {tag_name} already exists in vault {vault_url}. Skipping vaulting."
+                f"Tag {tag_name} already exists in vault {vault_push_url}. Skipping vaulting."
             )
         else:
-            print(f"Vaulting to {vault_url} with tag {tag_name}...")
+            print(f"Vaulting to {vault_push_url} with tag {tag_name}...")
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             repo_dir = self.cache_dir / repo_name
-            self.vcs.vault_reference(origin_git, sha, vault_url, tag_name, repo_dir)
+            self.vcs.vault_reference(
+                origin_git, sha, vault_push_url, tag_name, repo_dir
+            )
 
         new_source = tomlkit.inline_table()
-        new_source["git"] = vault_url
+        new_source["git"] = vault_fetch_url
         new_source["tag"] = tag_name
         if "subdirectory" in self.source_cfg:
             new_source["subdirectory"] = self.source_cfg["subdirectory"]
@@ -84,17 +88,24 @@ class PackageSyncer:
             repo_name = repo_name[:-4]
         return repo_name
 
-    def _compute_vault_url(self, repo_name: str) -> str:
+    def _compute_vault_urls(self, repo_name: str) -> tuple[str, str]:
         provider = self.vault_config.get("provider", "github.com")
         owner = self.vault_config.get("owner", "")
-        ssh_only = self.vault_config.get("ssh_only", False)
+        fetch_ssh = self.vault_config.get("fetch_ssh", False)
+        push_ssh = self.vault_config.get("push_ssh", True)
 
         path = f"{owner}/{repo_name}.git" if owner else f"{repo_name}.git"
 
-        if ssh_only:
-            return f"ssh://git@{provider}/{path}"
-        else:
-            return f"https://{provider}/{path}"
+        fetch_url = (
+            f"ssh://git@{provider}/{path}"
+            if fetch_ssh
+            else f"https://{provider}/{path}"
+        )
+        push_url = (
+            f"ssh://git@{provider}/{path}" if push_ssh else f"https://{provider}/{path}"
+        )
+
+        return fetch_url, push_url
 
 
 class SyncCommand:
