@@ -3,11 +3,34 @@ name = "uvault"
 version = "0.2.0"
 description = "Development and vaulting workflow for uv VCS dependencies."
 readme = "README.md"
+authors = [
+    { name = "Pierre Verkest", email = "pierre@verkest.fr" }
+]
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 requires-python = ">=3.10"
 dependencies = [
     "diskcache>=5.6.3",
     "tomlkit>=0.15.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/petrus-v/uvault"
+Repository = "https://github.com/petrus-v/uvault"
+Documentation = "https://github.com/petrus-v/uvault/tree/main/docs"
 
 [dependency-groups]
 dev = [
