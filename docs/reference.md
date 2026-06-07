@@ -50,9 +50,12 @@ my-package = { git = "https://github.com/OCA/repository", rev = "refs/pull/100/h
 
 Synchronizes remote references to the vault repository and updates `[tool.uv.sources]`.
 
+**Note:** By default, `uvault sync` will skip any package that is already declared in `[tool.uv.sources]`.
+
 **Options:**
 * `-P, --package <name>` : Synchronize only the specified package. Can be used multiple times. Implies `--update` for the specified packages.
-* `-U, --update` : Force update of the reference in the vault even if it already exists (applies to all processed packages).
+* `-U, --update` : Force update of the reference in the vault and in `[tool.uv.sources]` even if it already exists.
+* `--delete-extra` : Removes any package from `[tool.uv.sources]` that is not declared in `[tool.uvault.sources]`.
 
 ### `uvault add`
 
