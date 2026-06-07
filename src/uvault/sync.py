@@ -1,7 +1,7 @@
 from pathlib import Path
 from urllib.parse import urlparse
 import tomlkit
-from uvault.vcs import GitVcs, VcsProvider
+from uvault.vcs import GitVcs, VcsProvider, GitReference
 
 
 class PackageSyncer:
@@ -29,19 +29,19 @@ class PackageSyncer:
 
     def process(self) -> dict | None:
         origin_git = self.source_cfg.get("git")
-        origin_rev = self.source_cfg.get("rev")
+        git_ref = GitReference.from_config(self.source_cfg)
 
-        if not origin_git or not origin_rev:
+        if not origin_git or not git_ref:
             print(
-                f"Package {self.pkg} is missing 'git' or 'rev' in [tool.uvault.sources]"
+                f"Package {self.pkg} is missing 'git' or a valid reference ('rev', 'tag', 'branch') in [tool.uvault.sources]"
             )
             return None
 
         print(f"Syncing {self.pkg}...")
 
-        sha = self.vcs.get_remote_sha(origin_git, origin_rev)
+        sha = self.vcs.get_remote_sha(origin_git, git_ref)
         if not sha:
-            print(f"Failed to resolve {origin_rev} in {origin_git}")
+            print(f"Failed to resolve {git_ref.value} in {origin_git}")
             return None
 
         tag_name = self.tag_prefix

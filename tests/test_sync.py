@@ -305,7 +305,7 @@ def test_sync_missing_package_or_invalid_config(tmp_path, capsys):
     cmd = SyncCommand(pyproject_path=pyproject, packages=["bad-addon"])
     assert cmd.run() == 0
     captured = capsys.readouterr()
-    assert "missing 'git' or 'rev'" in captured.out
+    assert "missing 'git' or a valid reference" in captured.out
 
 
 @patch("uvault.vcs.subprocess.run")
@@ -412,3 +412,20 @@ def test_sync_include_project_version_false(mock_run, tmp_path):
         doc = tomlkit.parse(f.read())
 
     assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "apycod-12345678"
+
+
+def test_git_reference_args():
+    from uvault.vcs import GitReference
+
+    assert GitReference("tag", "v1.0").get_ls_remote_args() == ["--tags", "v1.0"]
+    assert GitReference("branch", "main").get_ls_remote_args() == ["--heads", "main"]
+    assert GitReference("rev", "123").get_ls_remote_args() == ["123"]
+
+
+def test_git_reference_from_config():
+    from uvault.vcs import GitReference
+
+    assert GitReference.from_config({"tag": "v1.0"}).ref_type == "tag"
+    assert GitReference.from_config({"branch": "main"}).ref_type == "branch"
+    assert GitReference.from_config({"rev": "123"}).ref_type == "rev"
+    assert GitReference.from_config({}) is None
