@@ -86,12 +86,14 @@ class SyncCommand:
         self,
         packages=None,
         update=False,
+        delete_extra=False,
         pyproject_path="pyproject.toml",
         cache_dir="~/.cache/uvault/repos",
         vcs=None,
     ):
         self.packages = packages or []
         self.update = update
+        self.delete_extra = delete_extra
         self.pyproject_path = Path(pyproject_path)
         self.cache_dir = Path(cache_dir).expanduser()
         self.vcs = vcs or GitVcs()
@@ -123,7 +125,20 @@ class SyncCommand:
         sources = tool_uvault.get("sources", {})
 
         if "uv" not in doc["tool"]:
-            doc["tool"].add("uv", tomlkit.table())
+            uv_table = tomlkit.table()
+            uv_table.add("sources", tomlkit.table())
+            tool_table = doc["tool"]
+            keys = list(tool_table.keys())
+            idx = keys.index("uvault")
+            saved = {}
+            for k in keys[idx + 1 :]:
+                saved[k] = tool_table.pop(k)
+
+            tool_table.add("uv", uv_table)
+
+            for k, v in saved.items():
+                tool_table.add(k, v)
+
         if "sources" not in doc["tool"]["uv"]:
             doc["tool"]["uv"].add("sources", tomlkit.table())
 
@@ -139,6 +154,12 @@ class SyncCommand:
                 continue
 
             force_update = self.update or (self.packages and pkg in self.packages)
+
+            if pkg in uv_sources and not force_update:
+                print(
+                    f"Package {pkg} is already in [tool.uv.sources]. Skipping (use --update to force)."
+                )
+                continue
 
             syncer = PackageSyncer(
                 pkg=pkg,
@@ -156,6 +177,13 @@ class SyncCommand:
             if new_source is not None:
                 uv_sources[pkg] = new_source
                 has_changes = True
+
+        if self.delete_extra:
+            for pkg in list(uv_sources.keys()):
+                if pkg not in sources:
+                    del uv_sources[pkg]
+                    print(f"Removed extra package {pkg} from [tool.uv.sources].")
+                    has_changes = True
 
         if has_changes:
             with open(self.pyproject_path, "w", encoding="utf-8") as f:

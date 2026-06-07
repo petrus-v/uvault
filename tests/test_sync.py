@@ -102,6 +102,125 @@ def test_sync_success(mock_run, temp_pyproject, tmp_path):
 
 
 @patch("uvault.vcs.subprocess.run")
+def test_sync_skip_existing(mock_run, temp_pyproject, tmp_path, capsys):
+    # Setup pyproject.toml so it already has my-addon in uv.sources
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    doc["tool"].add("uv", tomlkit.table())
+    doc["tool"]["uv"].add("sources", tomlkit.table())
+    doc["tool"]["uv"]["sources"]["my-addon"] = {"git": "...", "tag": "..."}
+    with open(temp_pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    cmd = SyncCommand(pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache")
+    assert cmd.run() == 0
+    captured = capsys.readouterr()
+    assert "already in [tool.uv.sources]. Skipping" in captured.out
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_delete_extra(mock_run, temp_pyproject, tmp_path, capsys):
+    # Setup pyproject.toml with an extra package in uv.sources
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    doc["tool"].add("uv", tomlkit.table())
+    doc["tool"]["uv"].add("sources", tomlkit.table())
+    doc["tool"]["uv"]["sources"]["extra-addon"] = {"git": "..."}
+    with open(temp_pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(
+        pyproject_path=temp_pyproject,
+        cache_dir=tmp_path / "cache",
+        delete_extra=True,
+        update=True,
+    )
+    assert cmd.run() == 0
+    captured = capsys.readouterr()
+    assert "Removed extra package extra-addon from [tool.uv.sources]" in captured.out
+
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    assert "extra-addon" not in doc["tool"]["uv"]["sources"]
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_order_and_uv_no_sources(mock_run, tmp_path):
+    # Test that uv is placed after uvault, and what happens if uv exists but not sources
+    pyproject = tmp_path / "pyproject.toml"
+    content = """
+    [tool.uvault]
+    [[tool.uvault.vcs_vaults]]
+    provider = "github.com"
+    owner = "petrus-v"
+
+    [tool.uvault.sources]
+    my-addon = { git = "https://github.com/OCA/my-addon", rev = "123" }
+
+    [tool.other]
+    val = 1
+    """
+    pyproject.write_text(content)
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(pyproject_path=pyproject, cache_dir=tmp_path / "cache")
+    assert cmd.run() == 0
+
+    # Now tool.uv.sources exists. Let's delete sources but keep uv
+    with open(pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    del doc["tool"]["uv"]["sources"]
+    with open(pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    assert cmd.run() == 0
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_uv_no_sources(mock_run, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    content = """
+    [tool.uvault]
+    tag_prefix = "ppr-"
+    [[tool.uvault.vcs_vaults]]
+    provider = "github.com"
+    owner = "petrus-v"
+
+    [tool.uvault.sources]
+    my-addon = { git = "https://github.com/OCA/my-addon", rev = "123" }
+
+    [tool.uv]
+    dev-dependencies = ["pytest"]
+    """
+    pyproject.write_text(content)
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(pyproject_path=pyproject, cache_dir=tmp_path / "cache")
+    assert cmd.run() == 0
+
+
+@patch("uvault.vcs.subprocess.run")
 def test_sync_cache_exists(mock_run, temp_pyproject, tmp_path):
     def mock_run_side_effect(*args, **kwargs):
         mock_result = MagicMock()

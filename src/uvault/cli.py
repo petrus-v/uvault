@@ -29,6 +29,12 @@ def main(argv=None):
         help="Specific package to sync. Can be used multiple times.",
     )
 
+    sync_parser.add_argument(
+        "--delete-extra",
+        action="store_true",
+        help="Delete references in uv.sources that are not in uvault.sources.",
+    )
+
     # Add command
     add_parser = subparsers.add_parser("add", help="Add a new vaulting intention.")
     add_parser.add_argument("package", help="The package to add")
@@ -49,7 +55,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "sync":
-        cmd = SyncCommand(packages=args.package, update=args.update)
+        cmd = SyncCommand(
+            packages=args.package, update=args.update, delete_extra=args.delete_extra
+        )
         return cmd.run()
     elif args.command == "develop":
         cmd = DevelopCommand(package=args.package, branch=args.branch)
