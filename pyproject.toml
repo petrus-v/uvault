@@ -27,6 +27,9 @@ dependencies = [
     "tomlkit>=0.15.0",
 ]
 
+[project.optional-dependencies]
+github = ["pygithub>=2.3.0"]
+
 [project.urls]
 Homepage = "https://github.com/petrus-v/uvault"
 Repository = "https://github.com/petrus-v/uvault"

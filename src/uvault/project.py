@@ -12,6 +12,17 @@ def normalize_pkg_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
+def read_user_config() -> dict:
+    config_path = Path("~/.config/uvault/config.toml").expanduser()
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            try:
+                return tomlkit.parse(f.read())
+            except Exception:
+                pass
+    return {}
+
+
 class PyProject:
     """Abstraction over pyproject.toml configuration file."""
 

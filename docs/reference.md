@@ -62,13 +62,19 @@ If your workflow does not guarantee that a single version string maps to a singl
 
 ## User Configuration
 
-You can define local machine-specific configurations, such as custom git remotes, in `~/.config/uvault/config.toml`. These remotes will be automatically added to the repository when running `uvault develop`.
+You can define local machine-specific configurations, such as custom git remotes and your GitHub token, in `~/.config/uvault/config.toml`.
 
 ```toml
 [remotes]
 myorg = "https://gitlab.com/myorg/"
 perso = "ssh://git@github.com/personal/"
+
+[github]
+token = "ghp_YOUR_GITHUB_TOKEN"
 ```
+
+* Remotes will be automatically added to the repository when running `uvault develop`.
+* The github token is used for automatically forking repositories when running `uvault sync`. For this to work, you need to have the `pygithub` optional dependency installed (e.g., `uv pip install uvault[github]`). In GitHub the token needs `fork` permissions.
 
 ## CLI Commands
 
@@ -83,6 +89,25 @@ Synchronizes remote references to the vault repository and updates `[tool.uv.sou
 * `--update` : Forces an update of the package(s) even if they are already present in `[tool.uv.sources]`.
 * `--delete-extra` : Removes any package found in `[tool.uv.sources]` that is not declared in `[tool.uvault.sources]`.
 * `--keep-develop` : By default, packages in develop mode (`editable = true` or using `path`) are restored to their vaulted state during sync. Use this flag to keep them in develop mode.
+
+**Automatic Forking (GitHub):**
+If `uvault sync` attempts to vault a repository that does not exist in your organization, it will automatically attempt to fork the original repository.
+To enable this feature:
+1. Ensure the optional dependency `pygithub` is installed (e.g., `uv pip install uvault[github]`).
+2. The source repository must be hosted on GitHub (`provider = "github.com"`).
+3. You must provide a valid token in your user configuration (`~/.config/uvault/config.toml`) under the `[github]` section (key `token`).
+
+**How to create a secure Fine-grained GitHub Token for forking:**
+If you want to restrict your token so it can *only* fork repositories into your target organization (e.g., `apycod`) and nothing else:
+1. Go to your GitHub **Settings** > **Developer settings** > **Personal access tokens** > **Fine-grained tokens**.
+2. Click **Generate new token**.
+3. **Resource owner**: Select your target organization (e.g., `apycod`). *Note: You must have sufficient privileges in the organization, and it must allow fine-grained PATs.*
+4. **Repository access**: Select **All repositories** (required because the token needs permission to create new repositories that do not exist yet).
+5. **Permissions**:
+   - Under **Repository permissions**, set **Administration** to **Read and write** (required to create the fork).
+   - Set **Contents** to **Read and write**.
+6. Generate the token and paste it into your `~/.config/uvault/config.toml` file.
+*(Note: Fine-grained tokens have implicit read access to all public repositories, which allows them to read the upstream source repository before forking it into your organization).*
 
 ### `uvault add`
 

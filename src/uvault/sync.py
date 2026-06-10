@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 from uvault.vcs import (
     VcsProvider,
@@ -34,6 +35,24 @@ class PackageSyncer:
         self.include_sha_in_release = include_sha_in_release
         self.current_sha = current_sha
         self.is_release = is_release
+
+    def _do_vaulting(
+        self,
+        sha: str,
+        origin_git: str,
+        vault_fetch_url: str,
+        vault_push_url: str,
+        tag_name: str,
+        repo_dir: Path,
+    ):
+        if self.current_sha:
+            self.vcs.vault_release_tag(
+                sha, vault_fetch_url, vault_push_url, tag_name, repo_dir
+            )
+        else:
+            self.vcs.vault_reference(
+                origin_git, sha, vault_push_url, tag_name, repo_dir
+            )
 
     def process(self) -> PackageSource | None:
         origin_git = self.uvault_source.origin_url
@@ -86,14 +105,25 @@ class PackageSyncer:
             print(f"Vaulting to {vault_push_url} with tag {tag_name}...")
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             repo_dir = self.cache_dir / repo_name
-            if self.current_sha:
-                self.vcs.vault_release_tag(
-                    sha, vault_fetch_url, vault_push_url, tag_name, repo_dir
+            try:
+                self._do_vaulting(
+                    sha, origin_git, vault_fetch_url, vault_push_url, tag_name, repo_dir
                 )
-            else:
-                self.vcs.vault_reference(
-                    origin_git, sha, vault_push_url, tag_name, repo_dir
-                )
+            except subprocess.CalledProcessError:
+                from uvault.github import attempt_github_fork
+
+                if attempt_github_fork(origin_git, self.vault_config):
+                    # Retry the vaulting after successful fork
+                    self._do_vaulting(
+                        sha,
+                        origin_git,
+                        vault_fetch_url,
+                        vault_push_url,
+                        tag_name,
+                        repo_dir,
+                    )
+                else:
+                    raise
 
         new_source = PackageSource(self.pkg, {})
         new_source.update(git=vault_fetch_url, tag=tag_name)

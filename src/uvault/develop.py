@@ -1,9 +1,8 @@
 from pathlib import Path
-import tomlkit
 
 from uvault.vcs import get_repo_name, compute_vault_urls
 from uvault.source import PackageSource
-from uvault.project import PyProject
+from uvault.project import PyProject, read_user_config
 
 
 class DevelopCommand:
@@ -16,16 +15,6 @@ class DevelopCommand:
         self.package = package
         self.branch = branch
         self.pyproject_path = Path(pyproject_path)
-
-    def _read_user_config(self) -> dict:
-        config_path = Path("~/.config/uvault/config.toml").expanduser()
-        if config_path.exists():
-            with open(config_path, "r", encoding="utf-8") as f:
-                try:
-                    return tomlkit.parse(f.read())
-                except Exception:
-                    pass
-        return {}
 
     def run(self):
         project = PyProject(self.pyproject_path)
@@ -88,7 +77,7 @@ class DevelopCommand:
         if vault_push_url:
             vcs.set_remote(dest_dir, "vault", vault_push_url)
 
-        user_config = self._read_user_config()
+        user_config = read_user_config()
         remotes = user_config.get("remotes", {})
         for remote_name, remote_prefix in remotes.items():
             if remote_name in ("origin", "vault"):

@@ -12,6 +12,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        with_github: [true, false]
     steps:
       - uses: actions/checkout@v6
 
@@ -21,8 +22,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
 
-      - name: Run tests and coverage
-        run: uv run --frozen pytest
+      - name: Run tests (without github)
+        if: ${{ !matrix.with_github }}
+        run: uv run --frozen pytest --cov-fail-under=0
+
+      - name: Run tests (with github)
+        if: ${{ matrix.with_github }}
+        run: uv run --frozen --extra github pytest
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

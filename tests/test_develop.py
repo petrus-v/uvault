@@ -97,9 +97,8 @@ def test_develop_success_with_config(mock_run, mock_get_sha, temp_pyproject, tmp
         package="my-addon", branch="my-branch", pyproject_path=temp_pyproject
     )
     # Mock user config with custom remote and overriding 'origin'
-    with patch.object(
-        DevelopCommand,
-        "_read_user_config",
+    with patch(
+        "uvault.develop.read_user_config",
         return_value={
             "remotes": {
                 "myorg": "https://gitlab.com/myorg/",
@@ -313,28 +312,29 @@ def test_develop_dir_exists_dirty(
 
 
 def test_read_user_config(tmp_path):
-    cmd = DevelopCommand("test", "my-branch")
+    from uvault.project import read_user_config
+
     # By default reads from ~/.config/uvault/config.toml
     # We mock it to ensure coverage
-    with patch("uvault.develop.Path.expanduser", return_value=tmp_path / "config.toml"):
+    with patch("uvault.project.Path.expanduser", return_value=tmp_path / "config.toml"):
         (tmp_path / "config.toml").write_text(
             '[remotes]\nmyorg = "https://gitlab.com/"\n'
         )
-        cfg = cmd._read_user_config()
+        cfg = read_user_config()
         assert cfg.get("remotes", {}).get("myorg") == "https://gitlab.com/"
 
     with patch(
-        "uvault.develop.Path.expanduser", return_value=tmp_path / "nonexistent.toml"
+        "uvault.project.Path.expanduser", return_value=tmp_path / "nonexistent.toml"
     ):
-        cfg = cmd._read_user_config()
+        cfg = read_user_config()
         assert cfg == {}
 
     # Invalid toml
     with patch(
-        "uvault.develop.Path.expanduser", return_value=tmp_path / "invalid.toml"
+        "uvault.project.Path.expanduser", return_value=tmp_path / "invalid.toml"
     ):
         (tmp_path / "invalid.toml").write_text("trust_guessed_urls = true\ninvalid")
-        cfg = cmd._read_user_config()
+        cfg = read_user_config()
         assert cfg == {}
 
 

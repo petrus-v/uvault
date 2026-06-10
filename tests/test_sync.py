@@ -731,3 +731,121 @@ def test_sync_release_no_tag_in_uv_source(mock_run, temp_pyproject, tmp_path, ca
     with open(temp_pyproject, "r") as f:
         doc = tomlkit.parse(f.read())
     assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "0.0.0+9999abcd"
+
+
+@patch("uvault.vcs.subprocess.run")
+@patch("uvault.github.attempt_github_fork")
+def test_sync_fork_success(mock_fork, mock_run, temp_pyproject, tmp_path, capsys):
+    mock_fork.return_value = True
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            if "--tags" in args[0]:
+                mock_result.stdout = ""
+            else:
+                mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        elif args[0][:2] == ["git", "-C"] and "push" in args[0]:
+            # Fail the first push, succeed the second
+            if getattr(mock_run_side_effect, "push_failed", False):
+                return mock_result
+            else:
+                mock_run_side_effect.push_failed = True
+                raise subprocess.CalledProcessError(1, args[0])
+        return mock_result
+
+    mock_run_side_effect.push_failed = False
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache")
+    assert cmd.run() == 0
+
+    mock_fork.assert_called_once()
+
+    # Check that push was called twice
+    push_call = [call for call in mock_run.call_args_list if "push" in call.args[0]]
+    assert len(push_call) == 2
+
+
+@patch("uvault.vcs.subprocess.run")
+@patch("uvault.github.attempt_github_fork")
+def test_sync_fork_failure(mock_fork, mock_run, temp_pyproject, tmp_path, capsys):
+    mock_fork.return_value = False
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            if "--tags" in args[0]:
+                mock_result.stdout = ""
+            else:
+                mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        elif args[0][:2] == ["git", "-C"] and "push" in args[0]:
+            raise subprocess.CalledProcessError(1, args[0])
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache")
+
+    with pytest.raises(subprocess.CalledProcessError):
+        cmd.run()
+
+    mock_fork.assert_called_once()
+
+
+@patch("uvault.vcs.subprocess.run")
+@patch("uvault.github.attempt_github_fork")
+def test_sync_fork_success_release(
+    mock_fork, mock_run, temp_pyproject, tmp_path, capsys
+):
+    mock_fork.return_value = True
+
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    doc["tool"].add("uv", tomlkit.table())
+    doc["tool"]["uv"].add("sources", tomlkit.table())
+    doc["tool"]["uv"]["sources"]["my-addon"] = {
+        "git": "old_url",
+        "tag": "apycod-1.0.0",
+    }
+    with open(temp_pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            if (
+                "petrus-v" in " ".join(args[0])
+                and len(args[0]) > 4
+                and args[0][-1] == "apycod-1.0.0"
+            ):
+                mock_result.stdout = "1234abcd refs/tags/apycod-1.0.0\n"
+            elif "--tags" in args[0]:
+                if getattr(mock_run_side_effect, "push_failed", False):
+                    mock_result.stdout = ""
+                else:
+                    mock_result.stdout = ""
+            else:
+                mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        elif args[0][:2] == ["git", "-C"] and "push" in args[0]:
+            # Fail the first push, succeed the second
+            if getattr(mock_run_side_effect, "push_failed", False):
+                return mock_result
+            else:
+                mock_run_side_effect.push_failed = True
+                raise subprocess.CalledProcessError(1, args[0])
+        return mock_result
+
+    mock_run_side_effect.push_failed = False
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(
+        pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache", release=True
+    )
+    assert cmd.run() == 0
+
+    mock_fork.assert_called_once()
+
+    # Check that push was called twice
+    push_call = [call for call in mock_run.call_args_list if "push" in call.args[0]]
+    assert len(push_call) == 2
