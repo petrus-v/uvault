@@ -90,7 +90,7 @@ def test_develop_no_pyproject(tmp_path, capsys):
     assert "pyproject.toml not found" in captured.out
 
 
-@patch("uvault.develop.GitVcs.get_remote_sha", return_value="abcdef123")
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value="abcdef123")
 @patch("uvault.vcs.subprocess.run")
 def test_develop_success_with_config(mock_run, mock_get_sha, temp_pyproject, tmp_path):
     cmd = DevelopCommand(
@@ -163,7 +163,7 @@ def test_develop_not_found(temp_pyproject, capsys):
 
 
 @patch("uvault.vcs.subprocess.run")
-@patch("uvault.develop.GitVcs.get_remote_sha", return_value=None)
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value=None)
 def test_develop_resolve_fails(mock_get_sha, mock_run, temp_pyproject, capsys):
     cmd = DevelopCommand(
         package="my-addon", branch="my-branch", pyproject_path=temp_pyproject
@@ -213,7 +213,7 @@ def test_fetch_remote_string(mock_run, tmp_path):
     )
 
 
-@patch("uvault.develop.GitVcs.get_remote_sha", return_value="abcdef123")
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value="abcdef123")
 @patch("uvault.vcs.subprocess.run")
 def test_develop_dir_exists_clean(mock_run, mock_get_sha, temp_pyproject, tmp_path):
     dest_dir = tmp_path / ".src" / "my-addon"
@@ -250,7 +250,7 @@ def test_develop_dir_exists_clean(mock_run, mock_get_sha, temp_pyproject, tmp_pa
     ]
 
 
-@patch("uvault.develop.GitVcs.get_remote_sha", return_value="abcdef123")
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value="abcdef123")
 @patch("uvault.vcs.subprocess.run")
 def test_develop_no_tool_uv(mock_run, mock_get_sha, tmp_path):
     pyproject_file = tmp_path / "pyproject.toml"
@@ -289,7 +289,7 @@ def test_develop_no_git_in_source(temp_pyproject, tmp_path, capsys):
     assert "does not have a valid VCS origin" in captured.out
 
 
-@patch("uvault.develop.GitVcs.get_remote_sha", return_value="abcdef123")
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value="abcdef123")
 @patch("uvault.vcs.subprocess.run")
 def test_develop_dir_exists_dirty(
     mock_run, mock_get_sha, temp_pyproject, tmp_path, capsys
@@ -338,7 +338,7 @@ def test_read_user_config(tmp_path):
         assert cfg == {}
 
 
-@patch("uvault.develop.GitVcs.get_remote_sha", return_value="abcdef123")
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value="abcdef123")
 @patch("uvault.vcs.subprocess.run")
 def test_develop_ref_branch_exists(mock_run, mock_get_sha, tmp_path):
     pyproject_file = tmp_path / "pyproject.toml"

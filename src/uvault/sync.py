@@ -6,8 +6,8 @@ from uvault.vcs import (
     GitReference,
     get_repo_name,
     compute_vault_urls,
-    get_vcs,
 )
+from uvault.source import PackageSource
 
 
 def normalize_pkg_name(name: str) -> str:
@@ -19,7 +19,7 @@ class PackageSyncer:
     def __init__(
         self,
         pkg: str,
-        source_cfg: dict,
+        uvault_source: PackageSource,
         cache_dir: Path,
         vault_config: dict,
         tag_prefix: str,
@@ -30,8 +30,8 @@ class PackageSyncer:
         is_release: bool = False,
     ):
         self.pkg = pkg
-        self.source_cfg = source_cfg
-        self.vcs = get_vcs(source_cfg)
+        self.uvault_source = uvault_source
+        self.vcs = uvault_source.get_vcs()
         self.cache_dir = cache_dir
         self.vault_config = vault_config
         self.tag_prefix = tag_prefix
@@ -41,9 +41,9 @@ class PackageSyncer:
         self.current_sha = current_sha
         self.is_release = is_release
 
-    def process(self) -> dict | None:
-        origin_git = self.source_cfg.get("git")
-        git_ref = GitReference.from_config(self.source_cfg)
+    def process(self) -> tomlkit.items.InlineTable | None:
+        origin_git = self.uvault_source.origin_url
+        git_ref = self.uvault_source.get_git_reference()
 
         if not origin_git or not git_ref:
             print(
@@ -101,13 +101,12 @@ class PackageSyncer:
                     origin_git, sha, vault_push_url, tag_name, repo_dir
                 )
 
-        new_source = tomlkit.inline_table()
-        new_source["git"] = vault_fetch_url
-        new_source["tag"] = tag_name
-        if "subdirectory" in self.source_cfg:
-            new_source["subdirectory"] = self.source_cfg["subdirectory"]
+        new_source = PackageSource(self.pkg, {})
+        new_source.update(git=vault_fetch_url, tag=tag_name)
+        if self.uvault_source.subdirectory:
+            new_source.update(subdirectory=self.uvault_source.subdirectory)
 
-        return new_source
+        return new_source.to_toml()
 
 
 class SyncCommand:
@@ -135,19 +134,17 @@ class SyncCommand:
     def _get_release_sha(
         self,
         pkg: str,
-        uv_pkg_cfg: dict,
-        sources: dict,
-        actual_source_key: str,
+        uv_source: PackageSource,
+        uvault_source: PackageSource,
         vault_config: dict,
         vcs: VcsProvider,
     ) -> str | None:
-        if not isinstance(uv_pkg_cfg, dict) or "tag" not in uv_pkg_cfg:
+        tag_str = uv_source.tag
+        if not tag_str:
             return None
-
-        tag_str = uv_pkg_cfg["tag"]
         current_sha = None
 
-        origin_git = sources[actual_source_key].get("git")
+        origin_git = uvault_source.origin_url
         if origin_git:
             repo_name = get_repo_name(origin_git)
             vault_fetch_url, _ = compute_vault_urls(repo_name, vault_config)
@@ -199,7 +196,7 @@ class SyncCommand:
         project_version = doc.get("project", {}).get("version")
         include_sha_in_release = tool_uvault.get("include_sha_in_release", True)
 
-        sources = tool_uvault.get("sources", {})
+        uvault_sources_dict = tool_uvault.get("sources", {})
 
         if "uv" not in doc["tool"]:
             doc["tool"].add("uv", tomlkit.table())
@@ -207,35 +204,44 @@ class SyncCommand:
         if "sources" not in doc["tool"]["uv"]:
             doc["tool"]["uv"].add("sources", tomlkit.table())
 
-        uv_sources = doc["tool"]["uv"]["sources"]
+        uv_sources_dict = doc["tool"]["uv"]["sources"]
 
-        packages_to_sync = self.packages if self.packages else list(sources.keys())
+        packages_to_sync = (
+            self.packages if self.packages else list(uvault_sources_dict.keys())
+        )
 
         has_changes = False
 
-        normalized_sources = {normalize_pkg_name(k): k for k in sources.keys()}
-        normalized_uv_sources = {normalize_pkg_name(k): k for k in uv_sources.keys()}
+        normalized_uvault_sources = {
+            normalize_pkg_name(k): k for k in uvault_sources_dict.keys()
+        }
+        normalized_uv_sources = {
+            normalize_pkg_name(k): k for k in uv_sources_dict.keys()
+        }
         normalized_packages = {normalize_pkg_name(p) for p in self.packages}
 
         for pkg in packages_to_sync:
             norm_pkg = normalize_pkg_name(pkg)
-            if norm_pkg not in normalized_sources:
+            if norm_pkg not in normalized_uvault_sources:
                 print(f"Package {pkg} not found in [tool.uvault.sources]")
                 continue
 
-            actual_source_key = normalized_sources[norm_pkg]
+            actual_source_key = normalized_uvault_sources[norm_pkg]
+            uvault_source = PackageSource.from_toml(
+                actual_source_key, uvault_sources_dict[actual_source_key]
+            )
             force_update = (
                 self.update or self.release or norm_pkg in normalized_packages
             )
 
             is_develop = False
+            uv_source = None
             if norm_pkg in normalized_uv_sources:
                 uv_pkg_key = normalized_uv_sources[norm_pkg]
-                uv_pkg_cfg = uv_sources.get(uv_pkg_key)
+                uv_pkg_cfg = uv_sources_dict.get(uv_pkg_key)
                 if isinstance(uv_pkg_cfg, dict):
-                    is_develop = (
-                        uv_pkg_cfg.get("editable") is True or "path" in uv_pkg_cfg
-                    )
+                    uv_source = PackageSource.from_toml(uv_pkg_key, uv_pkg_cfg)
+                    is_develop = uv_source.is_develop
 
             if is_develop:
                 if self.keep_develop:
@@ -251,15 +257,12 @@ class SyncCommand:
 
             current_sha = None
             if not is_develop and self.release:
-                uv_pkg_key = normalized_uv_sources.get(norm_pkg)
-                if uv_pkg_key:
-                    uv_pkg_cfg = uv_sources.get(uv_pkg_key)
-                    vcs_instance = get_vcs(sources[actual_source_key])
+                if uv_source:
+                    vcs_instance = uvault_source.get_vcs()
                     current_sha = self._get_release_sha(
                         pkg,
-                        uv_pkg_cfg,
-                        sources,
-                        actual_source_key,
+                        uv_source,
+                        uvault_source,
                         vault_config,
                         vcs_instance,
                     )
@@ -272,7 +275,7 @@ class SyncCommand:
 
             syncer = PackageSyncer(
                 pkg=actual_source_key,
-                source_cfg=sources[actual_source_key],
+                uvault_source=uvault_source,
                 cache_dir=self.cache_dir,
                 vault_config=vault_config,
                 tag_prefix=tag_prefix,
@@ -290,16 +293,16 @@ class SyncCommand:
                     norm_pkg in normalized_uv_sources
                     and normalized_uv_sources[norm_pkg] != actual_source_key
                 ):
-                    del uv_sources[normalized_uv_sources[norm_pkg]]
+                    del uv_sources_dict[normalized_uv_sources[norm_pkg]]
 
-                uv_sources[actual_source_key] = new_source
+                uv_sources_dict[actual_source_key] = new_source
                 normalized_uv_sources[norm_pkg] = actual_source_key
                 has_changes = True
 
         if self.delete_extra:
-            for uv_pkg in list(uv_sources.keys()):
-                if normalize_pkg_name(uv_pkg) not in normalized_sources:
-                    del uv_sources[uv_pkg]
+            for uv_pkg in list(uv_sources_dict.keys()):
+                if normalize_pkg_name(uv_pkg) not in normalized_uvault_sources:
+                    del uv_sources_dict[uv_pkg]
                     print(f"Removed extra package {uv_pkg} from [tool.uv.sources].")
                     has_changes = True
 
