@@ -42,9 +42,7 @@ class DevelopCommand:
         subdirectory = None
 
         if self.package in uvault_sources:
-            uvault_source = PackageSource.from_toml(
-                self.package, uvault_sources[self.package]
-            )
+            uvault_source = uvault_sources[self.package]
             origin_url = uvault_source.origin_url
             if not origin_url:
                 print(

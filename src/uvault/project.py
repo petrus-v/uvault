@@ -4,6 +4,14 @@ from pathlib import Path
 from uvault.source import PackageSource
 
 
+import re
+
+
+def normalize_pkg_name(name: str) -> str:
+    """Normalize a Python package name for comparison."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 class PyProject:
     """Abstraction over pyproject.toml configuration file."""
 
@@ -36,15 +44,39 @@ class PyProject:
         return self.doc.get("tool", {}).get("uvault", {})
 
     @property
-    def uvault_sources(self) -> dict:
-        return self.tool_uvault.get("sources", {})
+    def uvault_sources(self) -> dict[str, PackageSource]:
+        return {
+            k: PackageSource.from_toml(k, v)
+            for k, v in self.tool_uvault.get("sources", {}).items()
+        }
 
     def ensure_uv_sources(self) -> tomlkit.items.Table:
         return self._ensure_section("tool", "uv", "sources")
 
     @property
-    def uv_sources(self) -> dict:
-        return self.doc.get("tool", {}).get("uv", {}).get("sources", {})
+    def uv_sources(self) -> dict[str, PackageSource]:
+        return {
+            k: PackageSource.from_toml(k, v)
+            for k, v in self.doc.get("tool", {})
+            .get("uv", {})
+            .get("sources", {})
+            .items()
+        }
+
+    @property
+    def normalized_uvault_sources(self) -> dict[str, str]:
+        """Returns a mapping of normalized package name to its original key in [tool.uvault.sources]."""
+        return {
+            normalize_pkg_name(k): k for k in self.tool_uvault.get("sources", {}).keys()
+        }
+
+    @property
+    def normalized_uv_sources(self) -> dict[str, str]:
+        """Returns a mapping of normalized package name to its original key in [tool.uv.sources]."""
+        return {
+            normalize_pkg_name(k): k
+            for k in self.doc.get("tool", {}).get("uv", {}).get("sources", {}).keys()
+        }
 
     @property
     def project_version(self) -> str | None:

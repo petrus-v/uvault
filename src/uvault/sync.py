@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 from uvault.vcs import (
     VcsProvider,
     GitReference,
@@ -7,12 +6,7 @@ from uvault.vcs import (
     compute_vault_urls,
 )
 from uvault.source import PackageSource
-from uvault.project import PyProject
-
-
-def normalize_pkg_name(name: str) -> str:
-    """Normalize a Python package name for comparison."""
-    return re.sub(r"[-_.]+", "-", name).lower()
+from uvault.project import PyProject, normalize_pkg_name
 
 
 class PackageSyncer:
@@ -190,9 +184,6 @@ class SyncCommand:
             print("No [[tool.uvault.vcs_vaults]] configured.")
             return 1
 
-        project_version = project.project_version
-        include_sha_in_release = project.include_sha_in_release
-
         uvault_sources_dict = project.uvault_sources
 
         # Ensure uv_sources exists
@@ -205,12 +196,8 @@ class SyncCommand:
 
         has_changes = False
 
-        normalized_uvault_sources = {
-            normalize_pkg_name(k): k for k in uvault_sources_dict.keys()
-        }
-        normalized_uv_sources = {
-            normalize_pkg_name(k): k for k in uv_sources_dict.keys()
-        }
+        normalized_uvault_sources = project.normalized_uvault_sources
+        normalized_uv_sources = project.normalized_uv_sources
         normalized_packages = {normalize_pkg_name(p) for p in self.packages}
 
         for pkg in packages_to_sync:
@@ -220,9 +207,7 @@ class SyncCommand:
                 continue
 
             actual_source_key = normalized_uvault_sources[norm_pkg]
-            uvault_source = PackageSource.from_toml(
-                actual_source_key, uvault_sources_dict[actual_source_key]
-            )
+            uvault_source = uvault_sources_dict[actual_source_key]
             force_update = (
                 self.update or self.release or norm_pkg in normalized_packages
             )
@@ -231,9 +216,8 @@ class SyncCommand:
             uv_source = None
             if norm_pkg in normalized_uv_sources:
                 uv_pkg_key = normalized_uv_sources[norm_pkg]
-                uv_pkg_cfg = uv_sources_dict.get(uv_pkg_key)
-                if isinstance(uv_pkg_cfg, dict):
-                    uv_source = PackageSource.from_toml(uv_pkg_key, uv_pkg_cfg)
+                uv_source = uv_sources_dict.get(uv_pkg_key)
+                if uv_source:
                     is_develop = uv_source.is_develop
 
             if is_develop:
@@ -273,8 +257,8 @@ class SyncCommand:
                 vault_config=vault_config,
                 tag_prefix=tag_prefix,
                 force_update=force_update,
-                project_version=project_version,
-                include_sha_in_release=include_sha_in_release,
+                project_version=project.project_version,
+                include_sha_in_release=project.include_sha_in_release,
                 current_sha=current_sha,
                 is_release=self.release,
             )
