@@ -1,7 +1,7 @@
 from pathlib import Path
 import tomlkit
 
-from uvault.vcs import GitVcs, GitReference, get_repo_name, compute_vault_urls
+from uvault.vcs import GitReference, get_repo_name, compute_vault_urls, get_vcs
 
 
 class DevelopCommand:
@@ -14,7 +14,6 @@ class DevelopCommand:
         self.package = package
         self.branch = branch
         self.pyproject_path = Path(pyproject_path)
-        self.vcs = GitVcs()
 
     def _read_user_config(self) -> dict:
         config_path = Path("~/.config/uvault/config.toml").expanduser()
@@ -41,11 +40,18 @@ class DevelopCommand:
         git_ref = None
         subdirectory = None
 
-        if self.package in sources and "git" in sources[self.package]:
+        if self.package in sources:
             source_cfg = sources[self.package]
-            origin_url = source_cfg["git"]
+            origin_url = source_cfg.get("git")
+            if not origin_url:
+                print(
+                    f"Package {self.package} does not have a valid VCS origin (e.g. 'git') configured."
+                )
+                return 1
+
             git_ref = GitReference.from_config(source_cfg)
             subdirectory = source_cfg.get("subdirectory")
+            vcs = get_vcs(source_cfg)
         else:
             print(
                 f"Could not find configuration for {self.package} in [tool.uvault.sources]."
@@ -68,19 +74,19 @@ class DevelopCommand:
         if dest_dir.exists():
             print(f"Directory {dest_dir} already exists. Checking status...")
             # Check if clean
-            if not self.vcs.check_clean_state(dest_dir):
+            if not vcs.check_clean_state(dest_dir):
                 print(f"Error: {dest_dir} has uncommitted changes. Aborting.")
                 return 1
         else:
             print(f"Cloning {origin_url} into {dest_dir}...")
             dest_dir.parent.mkdir(parents=True, exist_ok=True)
-            self.vcs.clone(origin_url, dest_dir)
+            vcs.clone(origin_url, dest_dir)
 
         # Configure remotes
-        self.vcs.set_remote(dest_dir, "origin", origin_url)
+        vcs.set_remote(dest_dir, "origin", origin_url)
 
         if vault_push_url:
-            self.vcs.set_remote(dest_dir, "vault", vault_push_url)
+            vcs.set_remote(dest_dir, "vault", vault_push_url)
 
         user_config = self._read_user_config()
         remotes = user_config.get("remotes", {})
@@ -89,10 +95,10 @@ class DevelopCommand:
                 continue
             remote_url = f"{remote_prefix.rstrip('/')}/{repo_name}.git"
             # just add the remote without fetching
-            self.vcs.set_remote(dest_dir, remote_name, remote_url)
+            vcs.set_remote(dest_dir, remote_name, remote_url)
 
         # Checkout requested branch or ref
-        if not self.vcs.checkout_reference(dest_dir, origin_url, git_ref, self.branch):
+        if not vcs.checkout_reference(dest_dir, origin_url, git_ref, self.branch):
             print(
                 f"Could not resolve reference {git_ref.value if git_ref else 'None'} at {origin_url}"
             )

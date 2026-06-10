@@ -318,3 +318,9 @@ class GitVcs(VcsProvider):
             check=False,
             capture_output=True,
         )
+
+
+def get_vcs(source_cfg: dict | None = None) -> VcsProvider:
+    if source_cfg and "git" in source_cfg:
+        return GitVcs()
+    return GitVcs()  # pragma: no cover

@@ -274,6 +274,21 @@ def test_develop_no_tool_uv(mock_run, mock_get_sha, tmp_path):
     assert "my-addon" in doc["tool"]["uv"]["sources"]
 
 
+def test_develop_no_git_in_source(temp_pyproject, tmp_path, capsys):
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    doc["tool"]["uvault"]["sources"]["my-addon"] = {"hg": "old_url"}
+    with open(temp_pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    cmd = DevelopCommand(
+        package="my-addon", branch="dev-branch", pyproject_path=temp_pyproject
+    )
+    assert cmd.run() == 1
+    captured = capsys.readouterr()
+    assert "does not have a valid VCS origin" in captured.out
+
+
 @patch("uvault.develop.GitVcs.get_remote_sha", return_value="abcdef123")
 @patch("uvault.vcs.subprocess.run")
 def test_develop_dir_exists_dirty(

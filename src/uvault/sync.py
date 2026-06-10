@@ -2,11 +2,11 @@ from pathlib import Path
 import tomlkit
 import re
 from uvault.vcs import (
-    GitVcs,
     VcsProvider,
     GitReference,
     get_repo_name,
     compute_vault_urls,
+    get_vcs,
 )
 
 
@@ -20,7 +20,6 @@ class PackageSyncer:
         self,
         pkg: str,
         source_cfg: dict,
-        vcs: VcsProvider,
         cache_dir: Path,
         vault_config: dict,
         tag_prefix: str,
@@ -32,7 +31,7 @@ class PackageSyncer:
     ):
         self.pkg = pkg
         self.source_cfg = source_cfg
-        self.vcs = vcs
+        self.vcs = get_vcs(source_cfg)
         self.cache_dir = cache_dir
         self.vault_config = vault_config
         self.tag_prefix = tag_prefix
@@ -120,7 +119,6 @@ class SyncCommand:
         keep_develop: bool = False,
         pyproject_path: str = "pyproject.toml",
         cache_dir: str = "~/.cache/uvault",
-        vcs: VcsProvider | None = None,
         release: bool = False,
     ):
         if isinstance(packages, str):
@@ -132,7 +130,6 @@ class SyncCommand:
         self.keep_develop = keep_develop
         self.pyproject_path = Path(pyproject_path)
         self.cache_dir = Path(cache_dir).expanduser()
-        self.vcs = vcs or GitVcs()
         self.release = release
 
     def _get_release_sha(
@@ -142,6 +139,7 @@ class SyncCommand:
         sources: dict,
         actual_source_key: str,
         vault_config: dict,
+        vcs: VcsProvider,
     ) -> str | None:
         if not isinstance(uv_pkg_cfg, dict) or "tag" not in uv_pkg_cfg:
             return None
@@ -153,7 +151,7 @@ class SyncCommand:
         if origin_git:
             repo_name = get_repo_name(origin_git)
             vault_fetch_url, _ = compute_vault_urls(repo_name, vault_config)
-            current_sha = self.vcs.get_remote_sha(
+            current_sha = vcs.get_remote_sha(
                 vault_fetch_url, GitReference("tag", tag_str)
             )
 
@@ -256,8 +254,14 @@ class SyncCommand:
                 uv_pkg_key = normalized_uv_sources.get(norm_pkg)
                 if uv_pkg_key:
                     uv_pkg_cfg = uv_sources.get(uv_pkg_key)
+                    vcs_instance = get_vcs(sources[actual_source_key])
                     current_sha = self._get_release_sha(
-                        pkg, uv_pkg_cfg, sources, actual_source_key, vault_config
+                        pkg,
+                        uv_pkg_cfg,
+                        sources,
+                        actual_source_key,
+                        vault_config,
+                        vcs_instance,
                     )
 
             if norm_pkg in normalized_uv_sources and not force_update:
@@ -269,7 +273,6 @@ class SyncCommand:
             syncer = PackageSyncer(
                 pkg=actual_source_key,
                 source_cfg=sources[actual_source_key],
-                vcs=self.vcs,
                 cache_dir=self.cache_dir,
                 vault_config=vault_config,
                 tag_prefix=tag_prefix,
