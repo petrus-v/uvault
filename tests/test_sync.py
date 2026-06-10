@@ -76,7 +76,7 @@ def test_sync_success(mock_run, temp_pyproject, tmp_path):
     assert "my-addon" in doc["tool"]["uv"]["sources"]
     source = doc["tool"]["uv"]["sources"]["my-addon"]
     assert source["git"] == "https://github.com/petrus-v/my-addon.git"
-    assert source["tag"] == "ppr-1234abcd"
+    assert source["tag"] == "ppr+1234abcd"
     assert source["subdirectory"] == "my_addon"
 
     clone_call = [call for call in mock_run.call_args_list if "clone" in call.args[0]]
@@ -97,7 +97,7 @@ def test_sync_success(mock_run, temp_pyproject, tmp_path):
         str(cache_dir / "my-addon"),
         "push",
         "ssh://git@github.com/petrus-v/my-addon.git",
-        "1234abcd:refs/tags/ppr-1234abcd",
+        "1234abcd:refs/tags/ppr+1234abcd",
     ]
 
 
@@ -520,7 +520,7 @@ def test_sync_include_project_version_false(mock_run, tmp_path):
     with open(pyproject) as f:
         doc = tomlkit.parse(f.read())
 
-    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "apycod-12345678"
+    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "apycod+12345678"
 
 
 def test_git_reference_args():
@@ -637,38 +637,6 @@ def test_sync_release_with_plus_tag(mock_run, temp_pyproject, tmp_path, capsys):
 
 
 @patch("uvault.vcs.subprocess.run")
-def test_sync_release_without_plus_tag(mock_run, temp_pyproject, tmp_path, capsys):
-    with open(temp_pyproject, "r") as f:
-        doc = tomlkit.parse(f.read())
-    doc["tool"].add("uv", tomlkit.table())
-    doc["tool"]["uv"].add("sources", tomlkit.table())
-    doc["tool"]["uv"]["sources"]["my-addon"] = {
-        "git": "old_url",
-        "tag": "prefix-abcdef1234567890abcdef1234567890abcdef12",
-    }
-    with open(temp_pyproject, "w") as f:
-        f.write(tomlkit.dumps(doc))
-
-    def mock_run_side_effect(*args, **kwargs):
-        mock_result = MagicMock()
-        if args[0][:2] == ["git", "ls-remote"]:
-            raise subprocess.CalledProcessError(1, args[0])
-        return mock_result
-
-    mock_run.side_effect = mock_run_side_effect
-
-    cmd = SyncCommand(
-        pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache", release=True
-    )
-    assert cmd.run() == 0
-    captured = capsys.readouterr()
-    assert (
-        "Using existing commit abcdef1234567890abcdef1234567890abcdef12 for release"
-        in captured.out
-    )
-
-
-@patch("uvault.vcs.subprocess.run")
 def test_sync_release_invalid_tag(mock_run, temp_pyproject, tmp_path, capsys):
     with open(temp_pyproject, "r") as f:
         doc = tomlkit.parse(f.read())
@@ -698,3 +666,68 @@ def test_sync_release_invalid_tag(mock_run, temp_pyproject, tmp_path, capsys):
         "Warning: Could not extract SHA from tag 'short-tag' for package my-addon"
         in captured.out
     )
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_release_sha_from_vault(mock_run, temp_pyproject, tmp_path, capsys):
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    doc["tool"].add("uv", tomlkit.table())
+    doc["tool"]["uv"].add("sources", tomlkit.table())
+    doc["tool"]["uv"]["sources"]["my-addon"] = {
+        "git": "old_url",
+        "tag": "apycod-1.0.0",
+    }
+    with open(temp_pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            mock_result.stdout = "1234abcd refs/tags/apycod-1.0.0\n"
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(
+        pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache", release=True
+    )
+    assert cmd.run() == 0
+    captured = capsys.readouterr()
+    assert "Using existing commit 1234abcd for release" in captured.out
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_release_no_tag_in_uv_source(mock_run, temp_pyproject, tmp_path, capsys):
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    doc["tool"]["uvault"]["tag_prefix"] = ""
+    doc.add("project", tomlkit.table())
+    doc["project"]["version"] = "0.0.0"
+    doc["tool"].add("uv", tomlkit.table())
+    doc["tool"]["uv"].add("sources", tomlkit.table())
+    doc["tool"]["uv"]["sources"]["my-addon"] = {
+        "git": "old_url",
+        "rev": "master",  # no tag
+    }
+    with open(temp_pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            mock_result.stdout = "9999abcd refs/pull/123/head\n"
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(
+        pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache", release=True
+    )
+    assert cmd.run() == 0
+    captured = capsys.readouterr()
+    assert "Using existing commit" not in captured.out
+
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "0.0.0+9999abcd"

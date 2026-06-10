@@ -63,13 +63,20 @@ class PackageSyncer:
                 print(f"Failed to resolve {git_ref.value} in {origin_git}")
                 return None
 
-        tag_name = self.tag_prefix
+        tag_name = self.tag_prefix.rstrip("-+")
         if self.is_release and self.project_version:
-            tag_name += f"{self.project_version}"
+            if tag_name:
+                tag_name += f"-{self.project_version}"
+            else:
+                tag_name = self.project_version
+
             if self.include_sha_in_release:
                 tag_name += f"+{sha}"
         else:
-            tag_name += sha
+            if tag_name:
+                tag_name += f"+{sha}"
+            else:
+                tag_name = sha
 
         repo_name = get_repo_name(origin_git)
         vault_fetch_url, vault_push_url = compute_vault_urls(
@@ -127,6 +134,48 @@ class SyncCommand:
         self.cache_dir = Path(cache_dir).expanduser()
         self.vcs = vcs or GitVcs()
         self.release = release
+
+    def _get_release_sha(
+        self,
+        pkg: str,
+        uv_pkg_cfg: dict,
+        sources: dict,
+        actual_source_key: str,
+        vault_config: dict,
+    ) -> str | None:
+        if not isinstance(uv_pkg_cfg, dict) or "tag" not in uv_pkg_cfg:
+            return None
+
+        tag_str = uv_pkg_cfg["tag"]
+        current_sha = None
+
+        origin_git = sources[actual_source_key].get("git")
+        if origin_git:
+            repo_name = get_repo_name(origin_git)
+            vault_fetch_url, _ = compute_vault_urls(repo_name, vault_config)
+            current_sha = self.vcs.get_remote_sha(
+                vault_fetch_url, GitReference("tag", tag_str)
+            )
+
+        if current_sha:
+            return current_sha
+
+        # Fallback
+        if "+" in tag_str:
+            current_sha = tag_str.split("+")[-1]
+
+        if current_sha:
+            print(
+                f"Note: Tag '{tag_str}' not found in vault for package {pkg}. "
+                f"Falling back to extracted commit {current_sha} (assuming commit still exists)."
+            )
+        else:
+            print(
+                f"Warning: Could not extract SHA from tag '{tag_str}' for package {pkg}. "
+                f"Falling back to latest commit from upstream source."
+            )
+
+        return current_sha
 
     def run(self):
         if not self.pyproject_path.exists():
@@ -207,31 +256,9 @@ class SyncCommand:
                 uv_pkg_key = normalized_uv_sources.get(norm_pkg)
                 if uv_pkg_key:
                     uv_pkg_cfg = uv_sources.get(uv_pkg_key)
-                    if isinstance(uv_pkg_cfg, dict) and "tag" in uv_pkg_cfg:
-                        tag_str = uv_pkg_cfg["tag"]
-
-                        origin_git = sources[actual_source_key].get("git")
-                        if origin_git:
-                            repo_name = get_repo_name(origin_git)
-                            vault_fetch_url, _ = compute_vault_urls(
-                                repo_name, vault_config
-                            )
-                            current_sha = self.vcs.get_remote_sha(
-                                vault_fetch_url, GitReference("tag", tag_str)
-                            )
-
-                        if not current_sha:
-                            if "+" in tag_str:
-                                current_sha = tag_str.split("+")[-1]
-                            elif len(tag_str) >= 40:
-                                possible_sha = tag_str[-40:]
-                                if re.match(r"^[0-9a-f]{40}$", possible_sha):
-                                    current_sha = possible_sha
-
-                        if not current_sha:
-                            print(
-                                f"Warning: Could not extract SHA from tag '{tag_str}' for package {pkg}. Falling back to latest commit from source."
-                            )
+                    current_sha = self._get_release_sha(
+                        pkg, uv_pkg_cfg, sources, actual_source_key, vault_config
+                    )
 
             if norm_pkg in normalized_uv_sources and not force_update:
                 print(

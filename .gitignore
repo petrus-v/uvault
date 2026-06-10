@@ -11,3 +11,4 @@ wheels/
 .specs/.thirdparty/
 .specs/
 site/
+coverage.xml
