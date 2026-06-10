@@ -64,7 +64,7 @@ def main(argv=None):
         "-P",
         "--package",
         action="append",
-        help="Specific package to release. Can be used multiple times.",
+        help="Apply the release tag only to the specified vaulted package. Can be used multiple times.",
     )
     release_parser.add_argument(
         "--keep-develop",

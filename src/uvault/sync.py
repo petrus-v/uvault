@@ -26,8 +26,9 @@ class PackageSyncer:
         tag_prefix: str,
         force_update: bool,
         project_version: str | None = None,
-        include_project_version: bool = True,
+        include_sha_in_release: bool = True,
         current_sha: str | None = None,
+        is_release: bool = False,
     ):
         self.pkg = pkg
         self.source_cfg = source_cfg
@@ -37,8 +38,9 @@ class PackageSyncer:
         self.tag_prefix = tag_prefix
         self.force_update = force_update
         self.project_version = project_version
-        self.include_project_version = include_project_version
+        self.include_sha_in_release = include_sha_in_release
         self.current_sha = current_sha
+        self.is_release = is_release
 
     def process(self) -> dict | None:
         origin_git = self.source_cfg.get("git")
@@ -62,9 +64,13 @@ class PackageSyncer:
                 return None
 
         tag_name = self.tag_prefix
-        if self.include_project_version and self.project_version:
-            tag_name += f"{self.project_version}+"
-        tag_name += sha
+        if self.is_release and self.project_version:
+            tag_name += f"{self.project_version}"
+            if self.include_sha_in_release:
+                tag_name += f"+{sha}"
+        else:
+            tag_name += sha
+
         repo_name = get_repo_name(origin_git)
         vault_fetch_url, vault_push_url = compute_vault_urls(
             repo_name, self.vault_config
@@ -144,7 +150,7 @@ class SyncCommand:
         vault_config = next((v for v in vaults if v.get("default")), vaults[0])
 
         project_version = doc.get("project", {}).get("version")
-        include_project_version = tool_uvault.get("include_project_version", True)
+        include_sha_in_release = tool_uvault.get("include_sha_in_release", True)
 
         sources = tool_uvault.get("sources", {})
 
@@ -203,12 +209,24 @@ class SyncCommand:
                     uv_pkg_cfg = uv_sources.get(uv_pkg_key)
                     if isinstance(uv_pkg_cfg, dict) and "tag" in uv_pkg_cfg:
                         tag_str = uv_pkg_cfg["tag"]
-                        if "+" in tag_str:
-                            current_sha = tag_str.split("+")[-1]
-                        elif len(tag_str) >= 40:
-                            possible_sha = tag_str[-40:]
-                            if re.match(r"^[0-9a-f]{40}$", possible_sha):
-                                current_sha = possible_sha
+
+                        origin_git = sources[actual_source_key].get("git")
+                        if origin_git:
+                            repo_name = get_repo_name(origin_git)
+                            vault_fetch_url, _ = compute_vault_urls(
+                                repo_name, vault_config
+                            )
+                            current_sha = self.vcs.get_remote_sha(
+                                vault_fetch_url, GitReference("tag", tag_str)
+                            )
+
+                        if not current_sha:
+                            if "+" in tag_str:
+                                current_sha = tag_str.split("+")[-1]
+                            elif len(tag_str) >= 40:
+                                possible_sha = tag_str[-40:]
+                                if re.match(r"^[0-9a-f]{40}$", possible_sha):
+                                    current_sha = possible_sha
 
                         if not current_sha:
                             print(
@@ -230,8 +248,9 @@ class SyncCommand:
                 tag_prefix=tag_prefix,
                 force_update=force_update,
                 project_version=project_version,
-                include_project_version=include_project_version,
+                include_sha_in_release=include_sha_in_release,
                 current_sha=current_sha,
+                is_release=self.release,
             )
 
             new_source = syncer.process()

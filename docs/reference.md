@@ -27,8 +27,8 @@ The intention configuration is located in the `[tool.uvault]` section:
 
 ```toml
 [tool.uvault]
-tag_prefix = "apycod-"               # (Optional) Prefix for generated tags. Defaults to "".
-include_project_version = true          # (Optional) Includes the current project's version in the vault tag. Defaults to true.
+tag_prefix = "apycod-"                  # (Optional) Prefix for generated tags. Defaults to "".
+include_sha_in_release = false          # (Optional) Includes the commit SHA in the vault tag during releases. Defaults to true.
 dev_directory = ".src/"                 # (Optional) Directory for developed sources. Defaults to ".src/".
 
 # VCS Vault Configuration
@@ -43,6 +43,22 @@ default = true                          # (Optional) Marks this vault as the def
 [tool.uvault.sources]
 my-package = { git = "https://github.com/OCA/repository", rev = "refs/pull/100/head", subdirectory = "my_package" }
 ```
+
+## Tag Nomenclature
+
+`uvault` uses a specific naming convention for the tags it pushes to your vault, depending on the command executed:
+
+* **`uvault sync`**: Generates tags in the format `<tag_prefix><sha>` (e.g., `apycod-abcdef123...`). The project version is deliberately omitted during standard synchronization to avoid polluting tags when the version hasn't officially changed.
+* **`uvault release`**: Generates tags that always include the project version. Depending on the `include_sha_in_release` setting, it takes the format `<tag_prefix><project_version>+<sha>` (if `true`) or simply `<tag_prefix><project_version>` (if `false`).
+
+### The `include_sha_in_release` Parameter
+
+While `include_sha_in_release` defaults to `true`, **it is highly recommended to set it to `false`** if you are using a structured hook-based workflow (like `bump-my-version`).
+
+Setting it to `false` yields much cleaner, uniform tags during a release (e.g., `apycod-1.0.0`).
+
+**Why does it default to `true`?**
+If your workflow does not guarantee that a single version string maps to a single atomic release commit (for instance, if you might run `uvault release` multiple times for the exact same project version), omitting the SHA would cause `uvault` to overwrite the same tag in the vault, potentially losing intermediate locked versions. Keeping the SHA by default acts as a safety mechanism against accidental tag collisions.
 
 ## User Configuration
 
@@ -105,7 +121,7 @@ Updates the tags in `[tool.uv.sources]` with the new project version, keeping th
 When releasing a project (e.g., via `bump-my-version`), this command extracts the existing commit SHA from each vaulted package's tag in `[tool.uv.sources]`. It then constructs a new tag with the new project version and pushes it directly to the vault. This avoids fetching any new, unexpected commits from the source repository. Packages currently in develop mode will fall back to a standard sync.
 
 **Flags:**
-* `-P <package>, --package <package>` : Only release the specified package. Can be used multiple times.
+* `-P <package>, --package <package>` : Apply the release tag only to the specified vaulted package. Can be used multiple times.
 * `--keep-develop` : By default, packages in develop mode are restored to their vaulted state before tagging. Use this flag to keep them in develop mode (skipping their release).
 
 ::: uvault.cli

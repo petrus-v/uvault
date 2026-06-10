@@ -472,7 +472,9 @@ def test_sync_include_project_version(mock_run, tmp_path):
 
     mock_run.side_effect = mock_run_side_effect
 
-    cmd = SyncCommand(pyproject_path=pyproject, cache_dir=tmp_path / "cache")
+    cmd = SyncCommand(
+        pyproject_path=pyproject, cache_dir=tmp_path / "cache", release=True
+    )
     assert cmd.run() == 0
 
     with open(pyproject) as f:
@@ -607,6 +609,14 @@ def test_sync_release_with_plus_tag(mock_run, temp_pyproject, tmp_path, capsys):
     with open(temp_pyproject, "w") as f:
         f.write(tomlkit.dumps(doc))
 
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            raise subprocess.CalledProcessError(1, args[0])
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
     cmd = SyncCommand(
         pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache", release=True
     )
@@ -639,6 +649,14 @@ def test_sync_release_without_plus_tag(mock_run, temp_pyproject, tmp_path, capsy
     with open(temp_pyproject, "w") as f:
         f.write(tomlkit.dumps(doc))
 
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            raise subprocess.CalledProcessError(1, args[0])
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
     cmd = SyncCommand(
         pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache", release=True
     )
@@ -666,7 +684,7 @@ def test_sync_release_invalid_tag(mock_run, temp_pyproject, tmp_path, capsys):
     def mock_run_side_effect(*args, **kwargs):
         mock_result = MagicMock()
         if args[0][:2] == ["git", "ls-remote"]:
-            mock_result.stdout = "1234abcd refs/pull/123/head\n"
+            raise subprocess.CalledProcessError(1, args[0])
         return mock_result
 
     mock_run.side_effect = mock_run_side_effect
