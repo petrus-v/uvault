@@ -3,6 +3,7 @@ import urllib.parse
 import tomlkit
 
 from uvault.vcs import guess_repository_url
+from uvault.source import PackageSource
 
 
 class AddCommand:
@@ -78,26 +79,26 @@ class AddCommand:
 
         uvault_sources = doc["tool"]["uvault"]["sources"]
 
-        new_source = tomlkit.inline_table()
-        new_source["git"] = self.url
+        new_source = PackageSource(self.package, {})
+        new_source.update(git=self.url)
 
         # Priority: pr, rev, branch, tag
         if self.pr:
             if "github.com" in self.url:
-                new_source["rev"] = f"refs/pull/{self.pr}/head"
+                new_source.update(rev=f"refs/pull/{self.pr}/head")
             else:
-                new_source["rev"] = f"refs/merge-requests/{self.pr}/head"
+                new_source.update(rev=f"refs/merge-requests/{self.pr}/head")
         elif self.rev:
-            new_source["rev"] = self.rev
+            new_source.update(rev=self.rev)
         elif self.branch:
-            new_source["branch"] = self.branch
+            new_source.update(branch=self.branch)
         elif self.tag:
-            new_source["tag"] = self.tag
+            new_source.update(tag=self.tag)
 
         if self.subdirectory:
-            new_source["subdirectory"] = self.subdirectory
+            new_source.update(subdirectory=self.subdirectory)
 
-        uvault_sources[self.package] = new_source
+        uvault_sources[self.package] = new_source.to_toml()
 
         with open(self.pyproject_path, "w", encoding="utf-8") as f:
             f.write(tomlkit.dumps(doc))

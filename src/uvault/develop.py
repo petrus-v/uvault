@@ -1,7 +1,8 @@
 from pathlib import Path
 import tomlkit
 
-from uvault.vcs import GitReference, get_repo_name, compute_vault_urls, get_vcs
+from uvault.vcs import get_repo_name, compute_vault_urls
+from uvault.source import PackageSource
 
 
 class DevelopCommand:
@@ -34,24 +35,26 @@ class DevelopCommand:
             doc = tomlkit.parse(f.read())
 
         tool_uvault = doc.get("tool", {}).get("uvault", {})
-        sources = tool_uvault.get("sources", {})
+        uvault_sources = tool_uvault.get("sources", {})
 
         origin_url = None
         git_ref = None
         subdirectory = None
 
-        if self.package in sources:
-            source_cfg = sources[self.package]
-            origin_url = source_cfg.get("git")
+        if self.package in uvault_sources:
+            uvault_source = PackageSource.from_toml(
+                self.package, uvault_sources[self.package]
+            )
+            origin_url = uvault_source.origin_url
             if not origin_url:
                 print(
                     f"Package {self.package} does not have a valid VCS origin (e.g. 'git') configured."
                 )
                 return 1
 
-            git_ref = GitReference.from_config(source_cfg)
-            subdirectory = source_cfg.get("subdirectory")
-            vcs = get_vcs(source_cfg)
+            git_ref = uvault_source.get_git_reference()
+            subdirectory = uvault_source.subdirectory
+            vcs = uvault_source.get_vcs()
         else:
             print(
                 f"Could not find configuration for {self.package} in [tool.uvault.sources]."
@@ -111,15 +114,14 @@ class DevelopCommand:
 
         uv_sources = doc["tool"]["uv"]["sources"]
 
-        new_source = tomlkit.inline_table()
+        new_source = PackageSource(self.package, {})
         # Compute relative path
         rel_path = f"./{dev_directory.rstrip('/')}/{self.package}"
         if subdirectory:
             rel_path = f"{rel_path}/{subdirectory}"
-        new_source["path"] = rel_path
-        new_source["editable"] = True
+        new_source.update(path=rel_path, editable=True)
 
-        uv_sources[self.package] = new_source
+        uv_sources[self.package] = new_source.to_toml()
 
         with open(self.pyproject_path, "w", encoding="utf-8") as f:
             f.write(tomlkit.dumps(doc))
