@@ -82,3 +82,43 @@ This command will:
 ```bash
 uv sync
 ```
+
+### Step 4: Releasing with `bump-my-version`
+
+When releasing your project, the versions of vaulted dependencies' tags should ideally track the new release version without pulling potentially unstable, newer commits from the upstream source.
+
+Use the `uvault release` command in combination with tools like `bump-my-version`.
+
+**Crucial Warning:** `bump-my-version` must be configured to only change the main project version in `pyproject.toml`. It should **not** automatically search and replace version strings in dependency tags (`[tool.uv.sources]`), as this can break the reference.
+
+Instead, use `bump-my-version` hooks to automatically run `uvault release` after bumping the version and before committing.
+
+Here is an example `bump-my-version` configuration in `pyproject.toml`:
+
+```toml
+[tool.bumpversion]
+current_version = "1.0.0"
+commit = true
+tag = true
+message = "chore: bump version {current_version} → {new_version}"
+
+# Files where the version should be bumped
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[tool.bumpversion.hooks]
+# After the version string is updated, we update the uvault tags and lock file
+post_bump = [
+    "uv run uvault release",
+    "uv sync"
+]
+```
+
+**What happens during `uvault release`?**
+1. It reads the newly bumped version in `pyproject.toml`.
+2. It extracts the current commit SHA from the existing tag in `[tool.uv.sources]` for each vaulted dependency.
+3. It pushes a new tag to the vault (e.g. `apycod-1.0.1+<sha>`) pointing to the exact same commit, without pulling new updates from the upstream repository.
+4. It updates `[tool.uv.sources]` with the newly generated tags.
+5. If any package is currently in `develop` mode (meaning it doesn't have a vaulted tag in `uv.sources`), `uvault` will revert it to a standard vaulted state before tagging (unless you run it with `--keep-develop`, which would skip the package).

@@ -100,3 +100,20 @@ def test_cli_add(mock_add):
         subdirectory="sub",
     )
     mock_instance.run.assert_called_once()
+
+
+@patch("uvault.cli.SyncCommand")
+def test_cli_release(mock_sync):
+    mock_instance = mock_sync.return_value
+    mock_instance.run.return_value = 0
+
+    assert main(["release", "--package", "my-addon", "--keep-develop"]) == 0
+
+    mock_sync.assert_called_once_with(
+        packages=["my-addon"],
+        update=False,
+        delete_extra=False,
+        keep_develop=True,
+        release=True,
+    )
+    mock_instance.run.assert_called_once()

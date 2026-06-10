@@ -121,6 +121,17 @@ class VcsProvider(abc.ABC):
         pass  # pragma: no cover
 
     @abc.abstractmethod
+    def vault_release_tag(
+        self,
+        sha: str,
+        vault_fetch_url: str,
+        vault_push_url: str,
+        tag_name: str,
+        repo_dir: Path,
+    ) -> None:
+        pass  # pragma: no cover
+
+    @abc.abstractmethod
     def check_clean_state(self, repo_dir: Path) -> bool:
         pass  # pragma: no cover
 
@@ -210,6 +221,34 @@ class GitVcs(VcsProvider):
                 str(repo_dir),
                 "push",
                 vault_url,
+                f"{sha}:refs/tags/{tag_name}",
+            ],
+            check=True,
+        )
+
+    def vault_release_tag(
+        self,
+        sha: str,
+        vault_fetch_url: str,
+        vault_push_url: str,
+        tag_name: str,
+        repo_dir: Path,
+    ) -> None:
+        if not repo_dir.exists():
+            subprocess.run(
+                ["git", "clone", "--bare", vault_fetch_url, str(repo_dir)], check=True
+            )
+        print(f"fetching {sha} from vault in {repo_dir}")
+        subprocess.run(
+            ["git", "-C", str(repo_dir), "fetch", vault_fetch_url, sha], check=True
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_dir),
+                "push",
+                vault_push_url,
                 f"{sha}:refs/tags/{tag_name}",
             ],
             check=True,

@@ -27,6 +27,7 @@ class PackageSyncer:
         force_update: bool,
         project_version: str | None = None,
         include_project_version: bool = True,
+        current_sha: str | None = None,
     ):
         self.pkg = pkg
         self.source_cfg = source_cfg
@@ -37,6 +38,7 @@ class PackageSyncer:
         self.force_update = force_update
         self.project_version = project_version
         self.include_project_version = include_project_version
+        self.current_sha = current_sha
 
     def process(self) -> dict | None:
         origin_git = self.source_cfg.get("git")
@@ -50,10 +52,14 @@ class PackageSyncer:
 
         print(f"Syncing {self.pkg}...")
 
-        sha = self.vcs.get_remote_sha(origin_git, git_ref)
-        if not sha:
-            print(f"Failed to resolve {git_ref.value} in {origin_git}")
-            return None
+        if self.current_sha:
+            sha = self.current_sha
+            print(f"Using existing commit {sha} for release.")
+        else:
+            sha = self.vcs.get_remote_sha(origin_git, git_ref)
+            if not sha:
+                print(f"Failed to resolve {git_ref.value} in {origin_git}")
+                return None
 
         tag_name = self.tag_prefix
         if self.include_project_version and self.project_version:
@@ -74,9 +80,14 @@ class PackageSyncer:
             print(f"Vaulting to {vault_push_url} with tag {tag_name}...")
             self.cache_dir.mkdir(parents=True, exist_ok=True)
             repo_dir = self.cache_dir / repo_name
-            self.vcs.vault_reference(
-                origin_git, sha, vault_push_url, tag_name, repo_dir
-            )
+            if self.current_sha:
+                self.vcs.vault_release_tag(
+                    sha, vault_fetch_url, vault_push_url, tag_name, repo_dir
+                )
+            else:
+                self.vcs.vault_reference(
+                    origin_git, sha, vault_push_url, tag_name, repo_dir
+                )
 
         new_source = tomlkit.inline_table()
         new_source["git"] = vault_fetch_url
@@ -97,6 +108,7 @@ class SyncCommand:
         pyproject_path: str = "pyproject.toml",
         cache_dir: str = "~/.cache/uvault",
         vcs: VcsProvider | None = None,
+        release: bool = False,
     ):
         if isinstance(packages, str):
             self.packages = [packages]
@@ -108,6 +120,7 @@ class SyncCommand:
         self.pyproject_path = Path(pyproject_path)
         self.cache_dir = Path(cache_dir).expanduser()
         self.vcs = vcs or GitVcs()
+        self.release = release
 
     def run(self):
         if not self.pyproject_path.exists():
@@ -158,7 +171,9 @@ class SyncCommand:
                 continue
 
             actual_source_key = normalized_sources[norm_pkg]
-            force_update = self.update or norm_pkg in normalized_packages
+            force_update = (
+                self.update or self.release or norm_pkg in normalized_packages
+            )
 
             is_develop = False
             if norm_pkg in normalized_uv_sources:
@@ -181,6 +196,25 @@ class SyncCommand:
                         f"Package {pkg} is in develop mode. Restoring to vaulted state."
                     )
 
+            current_sha = None
+            if not is_develop and self.release:
+                uv_pkg_key = normalized_uv_sources.get(norm_pkg)
+                if uv_pkg_key:
+                    uv_pkg_cfg = uv_sources.get(uv_pkg_key)
+                    if isinstance(uv_pkg_cfg, dict) and "tag" in uv_pkg_cfg:
+                        tag_str = uv_pkg_cfg["tag"]
+                        if "+" in tag_str:
+                            current_sha = tag_str.split("+")[-1]
+                        elif len(tag_str) >= 40:
+                            possible_sha = tag_str[-40:]
+                            if re.match(r"^[0-9a-f]{40}$", possible_sha):
+                                current_sha = possible_sha
+
+                        if not current_sha:
+                            print(
+                                f"Warning: Could not extract SHA from tag '{tag_str}' for package {pkg}. Falling back to latest commit from source."
+                            )
+
             if norm_pkg in normalized_uv_sources and not force_update:
                 print(
                     f"Package {pkg} is already in [tool.uv.sources]. Skipping (use --update to force)."
@@ -197,6 +231,7 @@ class SyncCommand:
                 force_update=force_update,
                 project_version=project_version,
                 include_project_version=include_project_version,
+                current_sha=current_sha,
             )
 
             new_source = syncer.process()

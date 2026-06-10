@@ -55,6 +55,23 @@ def main(argv=None):
     dev_parser.add_argument("package", help="The package to develop")
     dev_parser.add_argument("branch", help="Branch name to checkout or create")
 
+    # Release command
+    release_parser = subparsers.add_parser(
+        "release",
+        help="Update tags in uv.sources with the current project version, keeping the same commit references.",
+    )
+    release_parser.add_argument(
+        "-P",
+        "--package",
+        action="append",
+        help="Specific package to release. Can be used multiple times.",
+    )
+    release_parser.add_argument(
+        "--keep-develop",
+        action="store_true",
+        help="Keep packages that are in local develop mode instead of restoring them.",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "sync":
@@ -63,6 +80,15 @@ def main(argv=None):
             update=args.update,
             delete_extra=args.delete_extra,
             keep_develop=args.keep_develop,
+        )
+        return cmd.run()
+    elif args.command == "release":
+        cmd = SyncCommand(
+            packages=args.package,
+            update=False,
+            delete_extra=False,
+            keep_develop=args.keep_develop,
+            release=True,
         )
         return cmd.run()
     elif args.command == "develop":

@@ -97,4 +97,15 @@ Switches a vaulted dependency into local editable mode for active development.
 3. Sets up remotes, including `origin`, `vault`, and any other custom remotes defined in `~/.config/uvault/config.toml`.
 4. Modifies `[tool.uv.sources]` to use `{ path = "./.src/<package>", editable = true }`.
 
+### `uvault release`
+
+Updates the tags in `[tool.uv.sources]` with the new project version, keeping the exact same commit references.
+
+**Workflow Details:**
+When releasing a project (e.g., via `bump-my-version`), this command extracts the existing commit SHA from each vaulted package's tag in `[tool.uv.sources]`. It then constructs a new tag with the new project version and pushes it directly to the vault. This avoids fetching any new, unexpected commits from the source repository. Packages currently in develop mode will fall back to a standard sync.
+
+**Flags:**
+* `-P <package>, --package <package>` : Only release the specified package. Can be used multiple times.
+* `--keep-develop` : By default, packages in develop mode are restored to their vaulted state before tagging. Use this flag to keep them in develop mode (skipping their release).
+
 ::: uvault.cli
