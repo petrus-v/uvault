@@ -46,7 +46,7 @@ class PyProject:
     @property
     def uvault_sources(self) -> dict[str, PackageSource]:
         return {
-            k: PackageSource.from_toml(k, v)
+            normalize_pkg_name(k): PackageSource.from_toml(k, v)
             for k, v in self.tool_uvault.get("sources", {}).items()
         }
 
@@ -56,26 +56,11 @@ class PyProject:
     @property
     def uv_sources(self) -> dict[str, PackageSource]:
         return {
-            k: PackageSource.from_toml(k, v)
+            normalize_pkg_name(k): PackageSource.from_toml(k, v)
             for k, v in self.doc.get("tool", {})
             .get("uv", {})
             .get("sources", {})
             .items()
-        }
-
-    @property
-    def normalized_uvault_sources(self) -> dict[str, str]:
-        """Returns a mapping of normalized package name to its original key in [tool.uvault.sources]."""
-        return {
-            normalize_pkg_name(k): k for k in self.tool_uvault.get("sources", {}).keys()
-        }
-
-    @property
-    def normalized_uv_sources(self) -> dict[str, str]:
-        """Returns a mapping of normalized package name to its original key in [tool.uv.sources]."""
-        return {
-            normalize_pkg_name(k): k
-            for k in self.doc.get("tool", {}).get("uv", {}).get("sources", {}).keys()
         }
 
     @property
@@ -102,13 +87,23 @@ class PyProject:
 
     def set_uvault_source(self, name: str, source: PackageSource):
         sources = self._ensure_section("tool", "uvault", "sources")
+        norm_name = normalize_pkg_name(name)
+        for existing_key in list(sources.keys()):
+            if normalize_pkg_name(existing_key) == norm_name and existing_key != name:
+                del sources[existing_key]
         sources[name] = source.to_toml()
 
     def set_uv_source(self, name: str, source: PackageSource):
         sources = self._ensure_section("tool", "uv", "sources")
+        norm_name = normalize_pkg_name(name)
+        for existing_key in list(sources.keys()):
+            if normalize_pkg_name(existing_key) == norm_name and existing_key != name:
+                del sources[existing_key]
         sources[name] = source.to_toml()
 
     def delete_uv_source(self, name: str):
         sources = self.doc.get("tool", {}).get("uv", {}).get("sources", {})
-        if name in sources:
-            del sources[name]
+        norm_name = normalize_pkg_name(name)
+        for existing_key in list(sources.keys()):
+            if normalize_pkg_name(existing_key) == norm_name:
+                del sources[existing_key]

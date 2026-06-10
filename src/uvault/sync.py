@@ -190,46 +190,38 @@ class SyncCommand:
         project.ensure_uv_sources()
         uv_sources_dict = project.uv_sources
 
+        normalized_packages = {normalize_pkg_name(p) for p in self.packages}
         packages_to_sync = (
-            self.packages if self.packages else list(uvault_sources_dict.keys())
+            normalized_packages if self.packages else list(uvault_sources_dict.keys())
         )
 
         has_changes = False
 
-        normalized_uvault_sources = project.normalized_uvault_sources
-        normalized_uv_sources = project.normalized_uv_sources
-        normalized_packages = {normalize_pkg_name(p) for p in self.packages}
-
-        for pkg in packages_to_sync:
-            norm_pkg = normalize_pkg_name(pkg)
-            if norm_pkg not in normalized_uvault_sources:
-                print(f"Package {pkg} not found in [tool.uvault.sources]")
+        for norm_pkg in packages_to_sync:
+            if norm_pkg not in uvault_sources_dict:
+                print(f"Package {norm_pkg} not found in [tool.uvault.sources]")
                 continue
 
-            actual_source_key = normalized_uvault_sources[norm_pkg]
-            uvault_source = uvault_sources_dict[actual_source_key]
+            uvault_source = uvault_sources_dict[norm_pkg]
             force_update = (
                 self.update or self.release or norm_pkg in normalized_packages
             )
 
             is_develop = False
-            uv_source = None
-            if norm_pkg in normalized_uv_sources:
-                uv_pkg_key = normalized_uv_sources[norm_pkg]
-                uv_source = uv_sources_dict.get(uv_pkg_key)
-                if uv_source:
-                    is_develop = uv_source.is_develop
+            uv_source = uv_sources_dict.get(norm_pkg)
+            if uv_source:
+                is_develop = uv_source.is_develop
 
             if is_develop:
                 if self.keep_develop:
                     print(
-                        f"Package {pkg} is in develop mode. Skipping (--keep-develop is set)."
+                        f"Package {uvault_source.name} is in develop mode. Skipping (--keep-develop is set)."
                     )
                     continue
                 else:
                     force_update = True
                     print(
-                        f"Package {pkg} is in develop mode. Restoring to vaulted state."
+                        f"Package {uvault_source.name} is in develop mode. Restoring to vaulted state."
                     )
 
             current_sha = None
@@ -237,21 +229,21 @@ class SyncCommand:
                 if uv_source:
                     vcs_instance = uvault_source.get_vcs()
                     current_sha = self._get_release_sha(
-                        pkg,
+                        uvault_source.name,
                         uv_source,
                         uvault_source,
                         vault_config,
                         vcs_instance,
                     )
 
-            if norm_pkg in normalized_uv_sources and not force_update:
+            if norm_pkg in uv_sources_dict and not force_update:
                 print(
-                    f"Package {pkg} is already in [tool.uv.sources]. Skipping (use --update to force)."
+                    f"Package {uvault_source.name} is already in [tool.uv.sources]. Skipping (use --update to force)."
                 )
                 continue
 
             syncer = PackageSyncer(
-                pkg=actual_source_key,
+                pkg=uvault_source.name,
                 uvault_source=uvault_source,
                 cache_dir=self.cache_dir,
                 vault_config=vault_config,
@@ -265,22 +257,17 @@ class SyncCommand:
 
             new_source = syncer.process()
             if new_source is not None:
-                # Remove the old unnormalized key from uv_sources if it exists
-                if (
-                    norm_pkg in normalized_uv_sources
-                    and normalized_uv_sources[norm_pkg] != actual_source_key
-                ):
-                    project.delete_uv_source(normalized_uv_sources[norm_pkg])
-
-                project.set_uv_source(actual_source_key, new_source)
-                normalized_uv_sources[norm_pkg] = actual_source_key
+                project.set_uv_source(uvault_source.name, new_source)
+                uv_sources_dict[norm_pkg] = new_source
                 has_changes = True
 
         if self.delete_extra:
-            for uv_pkg in list(uv_sources_dict.keys()):
-                if normalize_pkg_name(uv_pkg) not in normalized_uvault_sources:
-                    project.delete_uv_source(uv_pkg)
-                    print(f"Removed extra package {uv_pkg} from [tool.uv.sources].")
+            for norm_pkg in list(uv_sources_dict.keys()):
+                if norm_pkg not in uvault_sources_dict:
+                    project.delete_uv_source(norm_pkg)
+                    print(
+                        f"Removed extra package {uv_sources_dict[norm_pkg].name} from [tool.uv.sources]."
+                    )
                     has_changes = True
 
         if has_changes:
