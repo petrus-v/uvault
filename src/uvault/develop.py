@@ -3,6 +3,7 @@ import tomlkit
 
 from uvault.vcs import get_repo_name, compute_vault_urls
 from uvault.source import PackageSource
+from uvault.project import PyProject
 
 
 class DevelopCommand:
@@ -27,15 +28,14 @@ class DevelopCommand:
         return {}
 
     def run(self):
-        if not self.pyproject_path.exists():
+        project = PyProject(self.pyproject_path)
+        try:
+            project.read()
+        except FileNotFoundError:
             print("pyproject.toml not found")
             return 1
 
-        with open(self.pyproject_path, "r", encoding="utf-8") as f:
-            doc = tomlkit.parse(f.read())
-
-        tool_uvault = doc.get("tool", {}).get("uvault", {})
-        uvault_sources = tool_uvault.get("sources", {})
+        uvault_sources = project.uvault_sources
 
         origin_url = None
         git_ref = None
@@ -62,14 +62,13 @@ class DevelopCommand:
             print("Please run `uvault add` first to declare it.")
             return 1
 
-        dev_directory = tool_uvault.get("dev_directory", ".src")
+        dev_directory = project.dev_directory
         dest_dir = self.pyproject_path.parent / dev_directory / self.package
 
         repo_name = get_repo_name(origin_url)
 
-        vaults = tool_uvault.get("vcs_vaults", [])
-        if vaults:
-            vault_config = next((v for v in vaults if v.get("default")), vaults[0])
+        vault_config = project.get_vault_config()
+        if vault_config:
             _, vault_push_url = compute_vault_urls(repo_name, vault_config)
         else:
             vault_push_url = None
@@ -107,13 +106,6 @@ class DevelopCommand:
             )
             return 1
 
-        if "uv" not in doc["tool"]:
-            doc["tool"].add("uv", tomlkit.table())
-        if "sources" not in doc["tool"]["uv"]:
-            doc["tool"]["uv"].add("sources", tomlkit.table())
-
-        uv_sources = doc["tool"]["uv"]["sources"]
-
         new_source = PackageSource(self.package, {})
         # Compute relative path
         rel_path = f"./{dev_directory.rstrip('/')}/{self.package}"
@@ -121,10 +113,8 @@ class DevelopCommand:
             rel_path = f"{rel_path}/{subdirectory}"
         new_source.update(path=rel_path, editable=True)
 
-        uv_sources[self.package] = new_source.to_toml()
-
-        with open(self.pyproject_path, "w", encoding="utf-8") as f:
-            f.write(tomlkit.dumps(doc))
+        project.set_uv_source(self.package, new_source)
+        project.write()
 
         print(f"Updated pyproject.toml to use local editable path for {self.package}")
         print("Please run `uv sync` or `uv lock` to update your uv.lock file.")

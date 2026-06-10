@@ -1,5 +1,4 @@
 from pathlib import Path
-import tomlkit
 import re
 from uvault.vcs import (
     VcsProvider,
@@ -8,6 +7,7 @@ from uvault.vcs import (
     compute_vault_urls,
 )
 from uvault.source import PackageSource
+from uvault.project import PyProject
 
 
 def normalize_pkg_name(name: str) -> str:
@@ -41,7 +41,7 @@ class PackageSyncer:
         self.current_sha = current_sha
         self.is_release = is_release
 
-    def process(self) -> tomlkit.items.InlineTable | None:
+    def process(self) -> PackageSource | None:
         origin_git = self.uvault_source.origin_url
         git_ref = self.uvault_source.get_git_reference()
 
@@ -106,7 +106,7 @@ class PackageSyncer:
         if self.uvault_source.subdirectory:
             new_source.update(subdirectory=self.uvault_source.subdirectory)
 
-        return new_source.to_toml()
+        return new_source
 
 
 class SyncCommand:
@@ -173,38 +173,31 @@ class SyncCommand:
         return current_sha
 
     def run(self):
-        if not self.pyproject_path.exists():
+        project = PyProject(self.pyproject_path)
+        try:
+            project.read()
+        except FileNotFoundError:
             print("pyproject.toml not found")
             return 1
 
-        with open(self.pyproject_path, "r", encoding="utf-8") as f:
-            doc = tomlkit.parse(f.read())
-
-        tool_uvault = doc.get("tool", {}).get("uvault", {})
-        if not tool_uvault:
+        if not project.tool_uvault:
             print("No [tool.uvault] section in pyproject.toml")
             return 1
 
-        tag_prefix = tool_uvault.get("tag_prefix", "")
-        vaults = tool_uvault.get("vcs_vaults", [])
-        if not vaults:
+        tag_prefix = project.tag_prefix
+        vault_config = project.get_vault_config()
+        if not vault_config:
             print("No [[tool.uvault.vcs_vaults]] configured.")
             return 1
 
-        vault_config = next((v for v in vaults if v.get("default")), vaults[0])
+        project_version = project.project_version
+        include_sha_in_release = project.include_sha_in_release
 
-        project_version = doc.get("project", {}).get("version")
-        include_sha_in_release = tool_uvault.get("include_sha_in_release", True)
+        uvault_sources_dict = project.uvault_sources
 
-        uvault_sources_dict = tool_uvault.get("sources", {})
-
-        if "uv" not in doc["tool"]:
-            doc["tool"].add("uv", tomlkit.table())
-
-        if "sources" not in doc["tool"]["uv"]:
-            doc["tool"]["uv"].add("sources", tomlkit.table())
-
-        uv_sources_dict = doc["tool"]["uv"]["sources"]
+        # Ensure uv_sources exists
+        project.ensure_uv_sources()
+        uv_sources_dict = project.uv_sources
 
         packages_to_sync = (
             self.packages if self.packages else list(uvault_sources_dict.keys())
@@ -293,22 +286,21 @@ class SyncCommand:
                     norm_pkg in normalized_uv_sources
                     and normalized_uv_sources[norm_pkg] != actual_source_key
                 ):
-                    del uv_sources_dict[normalized_uv_sources[norm_pkg]]
+                    project.delete_uv_source(normalized_uv_sources[norm_pkg])
 
-                uv_sources_dict[actual_source_key] = new_source
+                project.set_uv_source(actual_source_key, new_source)
                 normalized_uv_sources[norm_pkg] = actual_source_key
                 has_changes = True
 
         if self.delete_extra:
             for uv_pkg in list(uv_sources_dict.keys()):
                 if normalize_pkg_name(uv_pkg) not in normalized_uvault_sources:
-                    del uv_sources_dict[uv_pkg]
+                    project.delete_uv_source(uv_pkg)
                     print(f"Removed extra package {uv_pkg} from [tool.uv.sources].")
                     has_changes = True
 
         if has_changes:
-            with open(self.pyproject_path, "w", encoding="utf-8") as f:
-                f.write(tomlkit.dumps(doc))
+            project.write()
             print("Updated pyproject.toml")
             print("Please run `uv sync` or `uv lock` to update your uv.lock file.")
 

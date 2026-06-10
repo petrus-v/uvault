@@ -1,9 +1,8 @@
 from pathlib import Path
 import urllib.parse
-import tomlkit
-
 from uvault.vcs import guess_repository_url
 from uvault.source import PackageSource
+from uvault.project import PyProject
 
 
 class AddCommand:
@@ -53,7 +52,10 @@ class AddCommand:
                     self.subdirectory = fragments["subdirectory"][0]
 
     def run(self):
-        if not self.pyproject_path.exists():
+        project = PyProject(self.pyproject_path)
+        try:
+            project.read()
+        except FileNotFoundError:
             print("pyproject.toml not found")
             return 1
 
@@ -66,18 +68,6 @@ class AddCommand:
                 return 1
             self.url = guessed_url
             print(f"Guessed repository URL: {self.url}")
-
-        with open(self.pyproject_path, "r", encoding="utf-8") as f:
-            doc = tomlkit.parse(f.read())
-
-        if "tool" not in doc:
-            doc.add("tool", tomlkit.table())
-        if "uvault" not in doc["tool"]:
-            doc["tool"].add("uvault", tomlkit.table())
-        if "sources" not in doc["tool"]["uvault"]:
-            doc["tool"]["uvault"].add("sources", tomlkit.table())
-
-        uvault_sources = doc["tool"]["uvault"]["sources"]
 
         new_source = PackageSource(self.package, {})
         new_source.update(git=self.url)
@@ -98,10 +88,8 @@ class AddCommand:
         if self.subdirectory:
             new_source.update(subdirectory=self.subdirectory)
 
-        uvault_sources[self.package] = new_source.to_toml()
-
-        with open(self.pyproject_path, "w", encoding="utf-8") as f:
-            f.write(tomlkit.dumps(doc))
+        project.set_uvault_source(self.package, new_source)
+        project.write()
 
         print(f"Added {self.package} to [tool.uvault.sources]")
         print("Run `uvault sync` to lock this dependency in [tool.uv.sources]")
