@@ -91,13 +91,13 @@ Use the `uvault release` command in combination with tools like `bump-my-version
 
 **Crucial Warning:** `bump-my-version` must be configured to only change the main project version in `pyproject.toml`. It should **not** automatically search and replace version strings in dependency tags (`[tool.uv.sources]`), as this can break the reference.
 
-Instead, use `bump-my-version` hooks to automatically run `uvault release` after bumping the version and before committing.
+Instead, use the `pre_commit_hooks` from `bump-my-version` to automatically run `uvault release` and update the lockfile before the release commit is made.
 
 Here is an example `bump-my-version` configuration in `pyproject.toml`, assuming you have also configured `include_sha_in_release = false` in your `[tool.uvault]` section:
 
 ```toml
 [tool.uvault]
-tag_prefix = "apycod-"
+tag_prefix = "apycod"
 include_sha_in_release = false
 
 [tool.bumpversion]
@@ -105,19 +105,17 @@ current_version = "1.0.0"
 commit = true
 tag = true
 message = "chore: bump version {current_version} → {new_version}"
+pre_commit_hooks = [
+    "uv run uvault release",
+    "uv sync",
+    "git add pyproject.toml uv.lock"
+]
 
 # Files where the version should be bumped
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
 search = 'version = "{current_version}"'
 replace = 'version = "{new_version}"'
-
-[tool.bumpversion.hooks]
-# After the version string is updated, we update the uvault tags and lock file
-post_bump = [
-    "uv run uvault release",
-    "uv sync"
-]
 ```
 
 **What happens during `uvault release`?**

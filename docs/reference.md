@@ -27,7 +27,7 @@ The intention configuration is located in the `[tool.uvault]` section:
 
 ```toml
 [tool.uvault]
-tag_prefix = "apycod-"                  # (Optional) Prefix for generated tags. Defaults to "".
+tag_prefix = "apycod"                   # (Optional) Prefix for generated tags. Defaults to "".
 include_sha_in_release = false          # (Optional) Includes the commit SHA in the vault tag during releases. Defaults to true.
 dev_directory = ".src/"                 # (Optional) Directory for developed sources. Defaults to ".src/".
 
@@ -48,8 +48,8 @@ my-package = { git = "https://github.com/OCA/repository", rev = "refs/pull/100/h
 
 `uvault` uses a specific naming convention for the tags it pushes to your vault, depending on the command executed:
 
-* **`uvault sync`**: Generates tags in the format `<tag_prefix><sha>` (e.g., `apycod-abcdef123...`). The project version is deliberately omitted during standard synchronization to avoid polluting tags when the version hasn't officially changed.
-* **`uvault release`**: Generates tags that always include the project version. Depending on the `include_sha_in_release` setting, it takes the format `<tag_prefix><project_version>+<sha>` (if `true`) or simply `<tag_prefix><project_version>` (if `false`).
+* **`uvault sync`**: Generates tags in the format `<tag_prefix>+<sha>` (e.g., `apycod+abcdef123...`). The project version is deliberately omitted during standard synchronization to avoid polluting tags when the version hasn't officially changed.
+* **`uvault release`**: Generates tags that always include the project version. Depending on the `include_sha_in_release` setting, it takes the format `<tag_prefix>-<project_version>+<sha>` (if `true`) or simply `<tag_prefix>-<project_version>` (if `false`).
 
 ### The `include_sha_in_release` Parameter
 
