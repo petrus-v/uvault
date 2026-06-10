@@ -12,10 +12,11 @@ switch dependencies into local editable mode—fully integrated with `pyproject.
 
 1. **Vaulting of Commits**: Never lose code again! Upstream pull requests and branches can be force-pushed or deleted. `uvault` fetches the exact commits your project depends on and pushes them as immutable tags to your own organization's vault repository.
 2. **Easy Local Development**: Switch any VCS dependency to local "editable" mode in seconds. `uvault develop` clones the package locally and seamlessly configures `uv` to use your local copy so you can test changes and contribute back.
+3. **Automatic GitHub Forking**: When a dependency's repository doesn't exist in your vault organization, `uvault` automatically forks the upstream repository using the GitHub API (via the `[github]` extra), making the setup completely transparent.
 
 ## Quickstart
 
-### 1. Add a Dependency
+### Add a Dependency
 
 Use `uvault add` to register an intention for a dependency. You can pass a PEP 508 URL or rely on automatic URL guessing if the package is already published.
 
@@ -23,7 +24,16 @@ Use `uvault add` to register an intention for a dependency. You can pass a PEP 5
 uvault add odoo-addon-my-package https://github.com/OCA/my-repo --pr 123 --subdirectory my_package
 ```
 
-### 2. Vault and Lock
+### Develop Locally
+
+Need to edit the dependency? Clone it instantly and set it as an editable dependency in `[tool.uv.sources]`.
+
+```bash
+uvault develop my-package feat-branch
+uv sync
+```
+
+### Vault and Lock
 
 Synchronize the dependency with your vault and lock it in `uv`.
 
@@ -32,11 +42,11 @@ uvault sync
 uv lock
 ```
 
-### 3. Develop Locally
+### Semantic Release Tagging
 
-Need to edit the dependency? Clone it instantly and set it as an editable dependency in `[tool.uv.sources]`.
+When you release a new version of your project, use `uvault release` to semantically tag all your vaulted dependencies with your project's new version. This updates the tags in `[tool.uv.sources]` while keeping the exact same commit references, making it easy to introspect exactly which code was used for any given release.
 
 ```bash
-uvault develop my-package feat-branch
+uvault release
 uv sync
 ```

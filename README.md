@@ -12,6 +12,7 @@ Secure your Python projects against deleted or force-pushed upstream commits. `u
 
 1. **Vaulting of Commits**: Never lose code again! Upstream pull requests and branches can be force-pushed or deleted. `uvault` fetches the exact commits your project depends on and pushes them as immutable tags to your own organization's vault repository.
 2. **Easy Local Development**: Switch any VCS dependency to local "editable" mode in seconds. `uvault develop` clones the package locally and seamlessly configures `uv` to use your local copy so you can test changes and contribute back.
+3. **Automatic GitHub Forking**: When a dependency's repository doesn't exist in your vault organization, `uvault` automatically forks the upstream repository using the GitHub API (via the `[github]` extra), making the setup completely transparent.
 
 ## Documentation
 

@@ -9,16 +9,18 @@
 Installing `uvault` as a dev dependency gives it access to your project's environment. This is crucial if you want `uvault add` to automatically guess repository URLs based on the metadata of your installed packages.
 
 ```bash
-uv add --dev uvault
+uv add --dev uvault[github]
 uv run uvault --help
 ```
+
+*Note: The `[github]` extra installs `pygithub`, which enables `uvault sync` to automatically fork repositories into your GitHub organization if they don't already exist.*
 
 ### 2. As an Independent Tool via `uvx`
 
 If you prefer keeping your dependencies minimal and don't need the automatic URL resolution feature, you can run `uvault` purely as an isolated, ephemeral tool using `uvx`.
 
 ```bash
-uvx uvault sync
+uvx --with uvault[github] uvault sync
 ```
 
 ## `pyproject.toml` Configuration
