@@ -67,6 +67,16 @@ current_version = "0.4.0"
 commit = true
 tag = true
 tag_name = "v{new_version}"
+pre_commit_hooks = [
+    # make sur uv.lock is updated with proper version number
+    # safer than a bumpverion.files config to avoid
+    # version collisions with other dependencies
+    "uv sync",
+    # just to be sure build still works
+    "uv build",
+    "uvx pre-commit run --files uv.lock pyproject.toml",
+    "git add pyproject.toml uv.lock",
+]
 
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
