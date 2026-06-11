@@ -1,5 +1,6 @@
 [project]
 site_name = "uvault documentation"
+site_url = "https://uvault.apycod.com"
 nav = [
     { "Quickstart" = "index.md" },
     { "Tutorials / How-To" = "how-to.md" },

@@ -18,9 +18,9 @@ Secure your Python projects against deleted or force-pushed upstream commits. `u
 
 The complete documentation is available in the `docs/` folder:
 
-* [Quickstart & Key Features](https://github.com/petrus-v/uvault/blob/main/docs/index.md) - Learn what `uvault` is and how to get started quickly.
-* [How-To Guides](https://github.com/petrus-v/uvault/blob/main/docs/how-to.md) - Step-by-step guides for installing and using `uvault` in your day-to-day workflow.
-* [CLI & Configuration Reference](https://github.com/petrus-v/uvault/blob/main/docs/reference.md) - Detailed information on `pyproject.toml` configuration (`[tool.uvault]`) and all CLI commands (`sync`, `add`, `develop`).
+* [Quickstart & Key Features](https://uvault.apycod.com) - Learn what `uvault` is and how to get started quickly.
+* [How-To Guides](https://uvault.apycod.com/how-to/) - Step-by-step guides for installing and using `uvault` in your day-to-day workflow.
+* [CLI & Configuration Reference](https://uvault.apycod.com/reference/) - Detailed information on `pyproject.toml` configuration (`[tool.uvault]`) and all CLI commands (`sync`, `add`, `develop`).
 
 ## Credits & Acknowledgements
 

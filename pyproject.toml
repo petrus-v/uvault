@@ -33,7 +33,7 @@ github = ["pygithub>=2.3.0"]
 [project.urls]
 Homepage = "https://github.com/petrus-v/uvault"
 Repository = "https://github.com/petrus-v/uvault"
-Documentation = "https://github.com/petrus-v/uvault/tree/main/docs"
+Documentation = "https://uvault.apycod.com"
 
 [dependency-groups]
 dev = [
