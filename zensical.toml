@@ -1,0 +1,18 @@
+[project]
+site_name = "uvault documentation"
+nav = [
+    { "Quickstart" = "index.md" },
+    { "Tutorials / How-To" = "how-to.md" },
+    { "Reference" = "reference.md" },
+    { "Contributing" = "contributing.md" }
+]
+
+[project.theme]
+name = "material"
+features = [
+    "navigation.tabs",
+    "navigation.sections"
+]
+
+[project.plugins.search]
+[project.plugins.mkdocstrings]
