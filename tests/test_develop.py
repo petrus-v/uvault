@@ -377,3 +377,32 @@ def test_develop_ref_branch_exists(mock_run, mock_get_sha, tmp_path):
         "checkout",
         "some-branch",
     ]
+
+
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value="abcdef123")
+@patch("uvault.vcs.subprocess.run")
+def test_develop_unnormalized_name(mock_run, mock_get_sha, temp_pyproject, tmp_path):
+    # Call develop with underscore but config has hyphen
+    cmd = DevelopCommand(
+        package="my_addon", branch="my-branch", pyproject_path=temp_pyproject
+    )
+    assert cmd.run() == 0
+
+    clone_call = [call for call in mock_run.call_args_list if "clone" in call.args[0]]
+    assert len(clone_call) == 1
+    # Check that it uses the canonical name from the config for the directory
+    assert clone_call[0].args[0] == [
+        "git",
+        "clone",
+        "--filter=blob:none",
+        "https://github.com/OCA/my-addon",
+        str(tmp_path / ".src" / "my-addon"),
+    ]
+
+    with open(temp_pyproject) as f:
+        doc = tomlkit.parse(f.read())
+
+    # Check that it updated uv.sources using the canonical name
+    assert (
+        doc["tool"]["uv"]["sources"]["my-addon"]["path"] == "./.src/my-addon/my_addon"
+    )

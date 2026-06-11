@@ -2,7 +2,7 @@ from pathlib import Path
 
 from uvault.vcs import get_repo_name, compute_vault_urls
 from uvault.source import PackageSource
-from uvault.project import PyProject, read_user_config
+from uvault.project import PyProject, read_user_config, normalize_pkg_name
 
 
 class DevelopCommand:
@@ -30,12 +30,15 @@ class DevelopCommand:
         git_ref = None
         subdirectory = None
 
-        if self.package in uvault_sources:
-            uvault_source = uvault_sources[self.package]
+        norm_package = normalize_pkg_name(self.package)
+
+        if norm_package in uvault_sources:
+            uvault_source = uvault_sources[norm_package]
+            canonical_name = uvault_source.name
             origin_url = uvault_source.origin_url
             if not origin_url:
                 print(
-                    f"Package {self.package} does not have a valid VCS origin (e.g. 'git') configured."
+                    f"Package {canonical_name} does not have a valid VCS origin (e.g. 'git') configured."
                 )
                 return 1
 
@@ -50,7 +53,7 @@ class DevelopCommand:
             return 1
 
         dev_directory = project.dev_directory
-        dest_dir = self.pyproject_path.parent / dev_directory / self.package
+        dest_dir = self.pyproject_path.parent / dev_directory / canonical_name
 
         repo_name = get_repo_name(origin_url)
 
@@ -93,17 +96,17 @@ class DevelopCommand:
             )
             return 1
 
-        new_source = PackageSource(self.package, {})
+        new_source = PackageSource(canonical_name, {})
         # Compute relative path
-        rel_path = f"./{dev_directory.rstrip('/')}/{self.package}"
+        rel_path = f"./{dev_directory.rstrip('/')}/{canonical_name}"
         if subdirectory:
             rel_path = f"{rel_path}/{subdirectory}"
         new_source.update(path=rel_path, editable=True)
 
-        project.set_uv_source(self.package, new_source)
+        project.set_uv_source(canonical_name, new_source)
         project.write()
 
-        print(f"Updated pyproject.toml to use local editable path for {self.package}")
+        print(f"Updated pyproject.toml to use local editable path for {canonical_name}")
         print("Please run `uv sync` or `uv lock` to update your uv.lock file.")
 
         return 0
