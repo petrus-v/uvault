@@ -14,6 +14,11 @@ uv add --dev uvault
 
 By installing it within your project's environment, `uvault` gains access to the local site-packages, allowing it to easily read the metadata of your project's existing dependencies.
 
+!!! tip "Using `uvault` via `uv run`"
+    When `uvault` is installed as a project dependency, running `uv run uvault <command>` triggers an automatic environment synchronization by `uv`. If you are adding a new dependency to your project, this automatic sync might fail because the new dependency isn't vaulted/resolved yet.
+
+    To avoid this, use the `--frozen` flag when invoking `uvault` (e.g., `uv run --frozen uvault add ...` and `uv run --frozen uvault sync`), or ensure you run the `uvault` commands *before* adding the dependency to your `pyproject.toml`.
+
 ### Step 1: Add a new dependency (`uvault add`)
 
 Instead of manually editing the `pyproject.toml` file, use the `uvault add` command to declare an intention in `[tool.uvault.sources]`.
