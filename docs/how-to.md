@@ -43,6 +43,7 @@ uvault sync
 ```
 
 The command will:
+
 1. Fetch the exact commit of the targeted branch or PR.
 2. Clone this repository into the local cache (if necessary).
 3. Push this commit to your vault repository as a frozen tag (e.g. `ppr-<sha>`).
@@ -56,6 +57,7 @@ uv sync
 ```
 
 #### Update an existing reference
+
 If the original PR has been updated (new commits):
 
 ```bash
@@ -78,6 +80,7 @@ uvault develop my-addon my-feature-branch
 ```
 
 This command will:
+
 1. Clone the repository into your local workspace (e.g., `./.src/my-addon`).
 2. Automatically configure your custom vault remotes (defined in `~/.config/uvault/config.toml`) so you can push your work easily.
 3. Replace the remote reference in `[tool.uv.sources]` with a local, editable path (`editable = true`).
@@ -94,7 +97,7 @@ When releasing your project, the versions of vaulted dependencies' tags should i
 
 Use the `uvault release` command in combination with tools like `bump-my-version`.
 
-**Crucial Warning:** `bump-my-version` must be configured to only change the main project version in `pyproject.toml`. It should **not** automatically search and replace version strings in dependency tags (`[tool.uv.sources]`), as this can break the reference.
+> **Crucial Warning:** `bump-my-version` must be configured to only change the main project version in `pyproject.toml`. It should **not** automatically search and replace > version strings in dependency tags (`[tool.uv.sources]`), as this can break the reference.
 
 Instead, use the `pre_commit_hooks` from `bump-my-version` to automatically run `uvault release` and update the lockfile before the release commit is made.
 
@@ -124,6 +127,7 @@ replace = 'version = "{new_version}"'
 ```
 
 **What happens during `uvault release`?**
+
 1. It reads the newly bumped version in `pyproject.toml`.
 2. It extracts the current commit SHA from the existing tag in `[tool.uv.sources]` for each vaulted dependency.
 3. It pushes a new tag to the vault pointing to the exact same commit, without pulling new updates from the upstream repository. The tag name will be cleaner (e.g. `apycod-1.0.1`) if `include_sha_in_release` is `false`, or it will include the SHA (e.g. `apycod-1.0.1+<sha>`) if left to its default `true`.

@@ -60,6 +60,7 @@ While `include_sha_in_release` defaults to `true`, **it is highly recommended to
 Setting it to `false` yields much cleaner, uniform tags during a release (e.g., `apycod-1.0.0`).
 
 **Why does it default to `true`?**
+
 If your workflow does not guarantee that a single version string maps to a single atomic release commit (for instance, if you might run `uvault release` multiple times for the exact same project version), omitting the SHA would cause `uvault` to overwrite the same tag in the vault, potentially losing intermediate locked versions. Keeping the SHA by default acts as a safety mechanism against accidental tag collisions.
 
 ## User Configuration
@@ -87,20 +88,25 @@ Synchronizes remote references to the vault repository and updates `[tool.uv.sou
 **Note:** By default, `uvault sync` will skip any package that is already declared in `[tool.uv.sources]`.
 
 **Flags:**
+
 * `-P <package>, --package <package>` : Only sync the specified package. Can be used multiple times.
 * `--update` : Forces an update of the package(s) even if they are already present in `[tool.uv.sources]`.
 * `--delete-extra` : Removes any package found in `[tool.uv.sources]` that is not declared in `[tool.uvault.sources]`.
 * `--keep-develop` : By default, packages in develop mode (`editable = true` or using `path`) are restored to their vaulted state during sync. Use this flag to keep them in develop mode.
 
 **Automatic Forking (GitHub):**
+
 If `uvault sync` attempts to vault a repository that does not exist in your organization, it will automatically attempt to fork the original repository.
 To enable this feature:
+
 1. Ensure the optional dependency `pygithub` is installed (e.g., `uv pip install uvault[github]`).
 2. The source repository must be hosted on GitHub (`provider = "github.com"`).
 3. You must provide a valid token in your user configuration (`~/.config/uvault/config.toml`) under the `[github]` section (key `token`).
 
 **How to create a secure Fine-grained GitHub Token for forking:**
+
 If you want to restrict your token so it can *only* fork repositories into your target organization (e.g., `apycod`) and nothing else:
+
 1. Go to your GitHub **Settings** > **Developer settings** > **Personal access tokens** > **Fine-grained tokens**.
 2. Click **Generate new token**.
 3. **Resource owner**: Select your target organization (e.g., `apycod`). *Note: You must have sufficient privileges in the organization, and it must allow fine-grained PATs.*
@@ -116,10 +122,12 @@ If you want to restrict your token so it can *only* fork repositories into your 
 Adds a new dependency intention directly into `[tool.uvault.sources]` without manual file editing.
 
 **Arguments:**
+
 * `<package>` : The name of the package to add.
 * `[url]` : (Optional) The VCS URL (e.g. `https://github.com/OCA/my-addon`). If omitted, `uvault` will attempt to guess it from PyPI metadata.
 
 **Options:**
+
 * `--branch <name>` : Target a specific branch.
 * `--tag <name>` : Target a specific tag.
 * `--pr <number>` : Target a pull/merge request number.
@@ -131,10 +139,12 @@ Adds a new dependency intention directly into `[tool.uvault.sources]` without ma
 Switches a vaulted dependency into local editable mode for active development.
 
 **Arguments:**
+
 * `<package>` : The name of the package to develop locally (must be declared in `[tool.uvault.sources]`).
 * `<branch>` : The name of the branch to checkout or create.
 
 **Workflow Details:**
+
 1. Clones (using a fast partial blobless clone) or fetches the repository into your `.src/` directory.
 2. Creates and checks out the new branch (`git checkout -b <branch>`), or switches to it if it exists (`git checkout <branch>`).
 3. Sets up remotes, including `origin`, `vault`, and any other custom remotes defined in `~/.config/uvault/config.toml`.
@@ -145,9 +155,11 @@ Switches a vaulted dependency into local editable mode for active development.
 Updates the tags in `[tool.uv.sources]` with the new project version, keeping the exact same commit references.
 
 **Workflow Details:**
+
 When releasing a project (e.g., via `bump-my-version`), this command extracts the existing commit SHA from each vaulted package's tag in `[tool.uv.sources]`. It then constructs a new tag with the new project version and pushes it directly to the vault. This avoids fetching any new, unexpected commits from the source repository. Packages currently in develop mode will fall back to a standard sync.
 
 **Flags:**
+
 * `-P <package>, --package <package>` : Apply the release tag only to the specified vaulted package. Can be used multiple times.
 * `--keep-develop` : By default, packages in develop mode are restored to their vaulted state before tagging. Use this flag to keep them in develop mode (skipping their release).
 
