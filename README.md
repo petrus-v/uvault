@@ -21,3 +21,7 @@ The complete documentation is available in the `docs/` folder:
 * [Quickstart & Key Features](https://github.com/petrus-v/uvault/blob/main/docs/index.md) - Learn what `uvault` is and how to get started quickly.
 * [How-To Guides](https://github.com/petrus-v/uvault/blob/main/docs/how-to.md) - Step-by-step guides for installing and using `uvault` in your day-to-day workflow.
 * [CLI & Configuration Reference](https://github.com/petrus-v/uvault/blob/main/docs/reference.md) - Detailed information on `pyproject.toml` configuration (`[tool.uvault]`) and all CLI commands (`sync`, `add`, `develop`).
+
+## Credits & Acknowledgements
+
+A huge thank you to [Stéphane Bidoul](https://github.com/sbidoul) for his continuous inspiration, and particularly for the work on [`pip-preserve-requirements`](https://github.com/sbidoul/pip-preserve-requirements) which strongly influenced the vision and design of this project.
