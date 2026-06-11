@@ -14,5 +14,15 @@ features = [
     "navigation.sections"
 ]
 
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/petrus-v/uvault"
+name = "uvault on GitHub"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/python"
+link = "https://pypi.org/project/uvault/"
+name = "uvault on PyPI"
+
 [project.plugins.search]
 [project.plugins.mkdocstrings]

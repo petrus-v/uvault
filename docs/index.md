@@ -1,5 +1,9 @@
 # uvault
 
+[![PyPI version](https://badge.fury.io/py/uvault.svg)](https://badge.fury.io/py/uvault)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/petrus-v/uvault)
+[![CI](https://github.com/petrus-v/uvault/actions/workflows/ci.yml/badge.svg)](https://github.com/petrus-v/uvault/actions/workflows/ci.yml)
+
 Development and vaulting workflow for [uv](https://github.com/astral-sh/uv) VCS dependencies.
 
 Secure your Python projects against deleted or force-pushed upstream commits.
