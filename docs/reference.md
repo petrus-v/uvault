@@ -32,6 +32,7 @@ The intention configuration is located in the `[tool.uvault]` section:
 tag_prefix = "apycod"                   # (Optional) Prefix for generated tags. Defaults to "".
 include_sha_in_release = false          # (Optional) Includes the commit SHA in the vault tag during releases. Defaults to true.
 dev_directory = ".src/"                 # (Optional) Directory for developed sources. Defaults to ".src/".
+ignore_labels = ["mod:", "series:"]     # (Optional) PR labels prefixes to ignore in 'uvault status'. Defaults to ["mod:", "series:"].
 
 # VCS Vault Configuration
 [[tool.uvault.vcs_vaults]]
@@ -162,5 +163,27 @@ When releasing a project (e.g., via `bump-my-version`), this command extracts th
 
 * `-P <package>, --package <package>` : Apply the release tag only to the specified vaulted package. Can be used multiple times.
 * `--keep-develop` : By default, packages in develop mode are restored to their vaulted state before tagging. Use this flag to keep them in develop mode (skipping their release).
+
+### `uvault status`
+
+Displays a real-time summary of your VCS dependencies (branches, pull requests) to quickly identify packages that need syncing, reviewing, or updating.
+
+**Options:**
+
+* `-P <package>, --package <package>` : Only check the specified package. Can be used multiple times.
+* `--format {list,inline,table}` : Output format (`list`, `inline`, `table`). Default is `list`.
+* `--sort-by {status,date,name}` : Sort the results by status, date (last activity), or name. Default is `name`.
+
+**Workflow Details:**
+
+For each package configured in `[tool.uvault.sources]`, `uvault status` queries the GitHub API to fetch the state of the targeted reference:
+- **PRs**: Indicates whether they are `OPEN`, `MERGED`, or `CLOSED`. Also surfaces relevant PR labels (excluding prefixes defined in `ignore_labels`, by default `mod:` and `series:`).
+- **Branches**: Displays an `ACTIVE` status.
+
+It then compares the commit currently vaulted locally (via `[tool.uv.sources]`) against the remote tip to show:
+- The number of **new commits** available (`behind`).
+- Whether a **history rewrite (Force-Push)** occurred on the remote branch, leaving your vaulted commit orphaned.
+
+*Note: The `status` functionality requires the `pygithub` optional dependency (`uv pip install uvault[github]`) and a valid token configured in `~/.config/uvault/config.toml`.*
 
 ::: uvault.cli

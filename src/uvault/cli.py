@@ -3,6 +3,7 @@ import sys
 from uvault.sync import SyncCommand
 from uvault.develop import DevelopCommand
 from uvault.add import AddCommand
+from uvault.status import StatusCommand
 
 
 def main(argv=None):
@@ -71,6 +72,28 @@ def main(argv=None):
         action="store_true",
         help="Keep packages that are in local develop mode instead of restoring them.",
     )
+    # Status command
+    status_parser = subparsers.add_parser(
+        "status", help="Show metadata and status for vaulted VCS dependencies."
+    )
+    status_parser.add_argument(
+        "-P",
+        "--package",
+        action="append",
+        help="Specific package to check. Can be used multiple times.",
+    )
+    status_parser.add_argument(
+        "--format",
+        choices=["list", "inline", "table"],
+        default="list",
+        help="Output format (list, inline, table). Default is list.",
+    )
+    status_parser.add_argument(
+        "--sort-by",
+        choices=["status", "date", "name"],
+        default="name",
+        help="Sort the results by status, last activity date, or name. Default is name.",
+    )
 
     args = parser.parse_args(argv)
 
@@ -103,6 +126,13 @@ def main(argv=None):
             tag=args.tag,
             rev=args.rev,
             subdirectory=args.subdirectory,
+        )
+        return cmd.run()
+    elif args.command == "status":
+        cmd = StatusCommand(
+            packages=args.package,
+            format_type=args.format,
+            sort_by=args.sort_by,
         )
         return cmd.run()
 

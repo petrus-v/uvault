@@ -5,6 +5,15 @@ from pathlib import Path
 from dataclasses import dataclass
 from urllib.parse import urlparse
 from importlib.metadata import metadata, PackageNotFoundError
+from enum import StrEnum
+
+
+class RefType(StrEnum):
+    PR = "PR"
+    BRANCH = "BRANCH"
+    TAG = "TAG"
+    REV = "REV"
+    UNKNOWN = "UNKNOWN"
 
 
 def guess_repository_url(package_name: str) -> str | None:
@@ -86,21 +95,33 @@ def compute_vault_urls(repo_name: str, vault_config: dict) -> tuple[str, str]:
 
 @dataclass
 class GitReference:
-    ref_type: str
+    ref_type: RefType
     value: str
 
     @classmethod
     def from_config(cls, source_cfg: dict) -> "GitReference | None":
         for key in ["rev", "tag", "branch"]:
             if key in source_cfg:
-                return cls(key, source_cfg[key])
+                val = source_cfg[key]
+                if (
+                    key == "rev"
+                    and val.startswith("refs/pull/")
+                    and val.endswith("/head")
+                ):
+                    pr_num = val.split("/")[2]
+                    return cls(RefType.PR, pr_num)
+
+                ref_type = RefType(key.upper())
+                return cls(ref_type, val)
         return None
 
     def get_ls_remote_args(self) -> list[str]:
-        if self.ref_type == "tag":
+        if self.ref_type == RefType.TAG:
             return ["--tags", self.value]
-        elif self.ref_type == "branch":
+        elif self.ref_type == RefType.BRANCH:
             return ["--heads", self.value]
+        elif self.ref_type == RefType.PR:
+            return [f"refs/pull/{self.value}/head"]
         else:
             return [self.value]
 
@@ -172,7 +193,7 @@ class GitVcs(VcsProvider):
         except subprocess.CalledProcessError:
             pass
 
-        if ref.ref_type == "rev" and re.match(r"^[0-9a-f]{40}$", ref.value):
+        if ref.ref_type == RefType.REV and re.match(r"^[0-9a-f]{40}$", ref.value):
             return ref.value
         return None
 

@@ -524,19 +524,22 @@ def test_sync_include_project_version_false(mock_run, tmp_path):
 
 
 def test_git_reference_args():
-    from uvault.vcs import GitReference
+    from uvault.vcs import GitReference, RefType
 
-    assert GitReference("tag", "v1.0").get_ls_remote_args() == ["--tags", "v1.0"]
-    assert GitReference("branch", "main").get_ls_remote_args() == ["--heads", "main"]
-    assert GitReference("rev", "123").get_ls_remote_args() == ["123"]
+    assert GitReference(RefType.TAG, "v1.0").get_ls_remote_args() == ["--tags", "v1.0"]
+    assert GitReference(RefType.BRANCH, "main").get_ls_remote_args() == [
+        "--heads",
+        "main",
+    ]
+    assert GitReference(RefType.REV, "123").get_ls_remote_args() == ["123"]
 
 
 def test_git_reference_from_config():
-    from uvault.vcs import GitReference
+    from uvault.vcs import GitReference, RefType
 
-    assert GitReference.from_config({"tag": "v1.0"}).ref_type == "tag"
-    assert GitReference.from_config({"branch": "main"}).ref_type == "branch"
-    assert GitReference.from_config({"rev": "123"}).ref_type == "rev"
+    assert GitReference.from_config({"tag": "v1.0"}).ref_type == RefType.TAG
+    assert GitReference.from_config({"branch": "main"}).ref_type == RefType.BRANCH
+    assert GitReference.from_config({"rev": "123"}).ref_type == RefType.REV
     assert GitReference.from_config({}) is None
 
 

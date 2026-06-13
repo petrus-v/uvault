@@ -168,7 +168,7 @@ def test_develop_resolve_fails(mock_get_sha, mock_run, temp_pyproject, capsys):
         package="my-addon", branch="my-branch", pyproject_path=temp_pyproject
     )
     assert cmd.run() == 1
-    assert "Could not resolve reference refs/pull/123/head" in capsys.readouterr().out
+    assert "Could not resolve reference 123" in capsys.readouterr().out
 
 
 @patch("uvault.vcs.subprocess.run")

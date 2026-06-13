@@ -117,3 +117,31 @@ def test_cli_release(mock_sync):
         release=True,
     )
     mock_instance.run.assert_called_once()
+
+
+@patch("uvault.cli.StatusCommand")
+def test_cli_status(mock_status):
+    mock_instance = mock_status.return_value
+    mock_instance.run.return_value = 0
+
+    assert (
+        main(
+            [
+                "status",
+                "--package",
+                "my-addon",
+                "--format",
+                "table",
+                "--sort-by",
+                "status",
+            ]
+        )
+        == 0
+    )
+
+    mock_status.assert_called_once_with(
+        packages=["my-addon"],
+        format_type="table",
+        sort_by="status",
+    )
+    mock_instance.run.assert_called_once()

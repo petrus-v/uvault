@@ -3,27 +3,28 @@ from urllib.parse import urlparse
 from uvault.project import read_user_config
 
 
-def attempt_github_fork(origin_git: str, vault_config: dict) -> bool:
-    """
-    Attempts to fork a GitHub repository into the vault organization.
-    Returns True if successful, False otherwise.
-    """
-    provider = vault_config.get("provider", "github.com")
-    if provider != "github.com":
-        return False
-
+def get_github_client(allow_anonymous: bool = True):
     user_config = read_user_config()
     token = user_config.get("github", {}).get("token")
-    if not token:
-        return False
-
     try:
         from github import Github, Auth
-        from github.GithubException import GithubException
-    except ImportError:
-        return False
 
-    # Extract 'owner/repo' from origin_git
+        if token:
+            auth = Auth.Token(token)
+            return Github(auth=auth)
+        elif allow_anonymous:
+            print(
+                "WARNING: No GitHub token configured in ~/.config/uvault/config.toml.\n"
+                "Using unauthenticated access. You may hit rate limits."
+            )
+            return Github()
+        else:
+            return None
+    except ImportError:
+        return None
+
+
+def get_github_repo_path(origin_git: str) -> str | None:
     if origin_git.startswith("git@"):
         path = origin_git.split(":")[-1]
     elif origin_git.startswith("ssh://"):
@@ -37,6 +38,31 @@ def attempt_github_fork(origin_git: str, vault_config: dict) -> bool:
         path = path[:-4]
 
     if not path or "/" not in path:
+        return None
+
+    return path
+
+
+def attempt_github_fork(origin_git: str, vault_config: dict) -> bool:
+    """
+    Attempts to fork a GitHub repository into the vault organization.
+    Returns True if successful, False otherwise.
+    """
+    provider = vault_config.get("provider", "github.com")
+    if provider != "github.com":
+        return False
+
+    g = get_github_client(allow_anonymous=False)
+    if not g:
+        return False
+
+    try:
+        from github.GithubException import GithubException
+    except ImportError:
+        return False
+
+    path = get_github_repo_path(origin_git)
+    if not path:
         return False
 
     target_org_name = vault_config.get("owner")
@@ -44,8 +70,6 @@ def attempt_github_fork(origin_git: str, vault_config: dict) -> bool:
         return False
 
     try:
-        auth = Auth.Token(token)
-        g = Github(auth=auth)
         repo_original = g.get_repo(path)
         orga = g.get_organization(target_org_name)
 

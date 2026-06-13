@@ -17,6 +17,7 @@ switch dependencies into local editable mode—fully integrated with `pyproject.
 1. **Vaulting of Commits**: Never lose code again! Upstream pull requests and branches can be force-pushed or deleted. `uvault` fetches the exact commits your project depends on and pushes them as immutable tags to your own organization's vault repository.
 2. **Easy Local Development**: Switch any VCS dependency to local "editable" mode in seconds. `uvault develop` clones the package locally and seamlessly configures `uv` to use your local copy so you can test changes and contribute back.
 3. **Automatic GitHub Forking**: When a dependency's repository doesn't exist in your vault organization, `uvault` automatically forks the upstream repository using the GitHub API (via the `[github]` extra), making the setup completely transparent.
+4. **Status Monitoring**: Instantly check the health of all your VCS dependencies. `uvault status` shows if PRs are merged or closed, flags new remote commits, and automatically detects orphaned commits caused by upstream force-pushes.
 
 ## Quickstart
 
@@ -44,6 +45,14 @@ Synchronize the dependency with your vault and lock it in `uv`.
 ```bash
 uvault sync
 uv lock
+```
+
+### Check Dependency Status
+
+Review the status of your VCS dependencies at a glance to see if PRs are merged, or if your vaulted commits are lagging behind or orphaned due to a force-push.
+
+```bash
+uvault status --format inline --sort-by status
 ```
 
 ### Semantic Release Tagging
