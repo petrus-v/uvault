@@ -1,3 +1,4 @@
+from unittest.mock import patch
 from uvault.source import PackageSource
 
 
@@ -33,3 +34,18 @@ def test_package_source():
     # Test get_git_reference without origin_url
     src_no_git = PackageSource("no-git", {"other": "value"})
     assert src_no_git.get_git_reference() is None
+
+
+@patch("uvault.forge.create_forge")
+def test_package_source_fork(mock_create_forge):
+    source = PackageSource("pkg-a", {"git": "https://github.com/org/repoa"})
+
+    # Test forge returns True
+    mock_forge = mock_create_forge.return_value
+    mock_forge.fork.return_value = True
+    assert source.fork("my-org") is True
+    mock_forge.fork.assert_called_once_with("my-org")
+
+    # Test forge is None
+    mock_create_forge.return_value = None
+    assert source.fork("my-org") is False

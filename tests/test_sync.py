@@ -737,7 +737,7 @@ def test_sync_release_no_tag_in_uv_source(mock_run, temp_pyproject, tmp_path, ca
 
 
 @patch("uvault.vcs.subprocess.run")
-@patch("uvault.github.attempt_github_fork")
+@patch("uvault.source.PackageSource.fork")
 def test_sync_fork_success(mock_fork, mock_run, temp_pyproject, tmp_path, capsys):
     mock_fork.return_value = True
 
@@ -771,7 +771,7 @@ def test_sync_fork_success(mock_fork, mock_run, temp_pyproject, tmp_path, capsys
 
 
 @patch("uvault.vcs.subprocess.run")
-@patch("uvault.github.attempt_github_fork")
+@patch("uvault.source.PackageSource.fork")
 def test_sync_fork_failure(mock_fork, mock_run, temp_pyproject, tmp_path, capsys):
     mock_fork.return_value = False
 
@@ -797,7 +797,7 @@ def test_sync_fork_failure(mock_fork, mock_run, temp_pyproject, tmp_path, capsys
 
 
 @patch("uvault.vcs.subprocess.run")
-@patch("uvault.github.attempt_github_fork")
+@patch("uvault.source.PackageSource.fork")
 def test_sync_fork_success_release(
     mock_fork, mock_run, temp_pyproject, tmp_path, capsys
 ):

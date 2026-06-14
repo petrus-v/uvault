@@ -1,6 +1,10 @@
 import tomlkit
+from typing import TYPE_CHECKING
 
 from uvault.vcs import get_vcs, VcsProvider, GitReference
+
+if TYPE_CHECKING:
+    from uvault.forge import Forge
 
 
 class PackageSource:
@@ -41,6 +45,19 @@ class PackageSource:
     def get_vcs(self) -> VcsProvider:
         """Instantiate the correct VCS provider for this source."""
         return get_vcs(self.config)
+
+    def get_forge(self) -> "Forge | None":
+        """Instantiate the correct Forge provider for this source."""
+        from uvault.forge import create_forge
+
+        return create_forge(self.origin_url)
+
+    def fork(self, target_org: str) -> bool:
+        """Fork the repository to the target organization using the forge API."""
+        forge = self.get_forge()
+        if forge:
+            return forge.fork(target_org)
+        return False
 
     def get_git_reference(self) -> GitReference | None:
         """Extract the git reference from the configuration."""

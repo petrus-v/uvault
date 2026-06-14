@@ -24,7 +24,7 @@ jobs:
 
       - name: Run tests (without github)
         if: ${{ !matrix.with_github }}
-        run: uv run --frozen pytest --cov-fail-under=0
+        run: uv run --frozen --no-extra github pytest --cov-fail-under=0
 
       - name: Run tests (with github)
         if: ${{ matrix.with_github }}

@@ -6,7 +6,6 @@ from enum import StrEnum
 from uvault.project import PyProject
 from uvault.source import PackageSource
 from uvault.vcs import RefType
-from uvault.github import get_github_client, get_github_repo_path
 
 
 class PullRequestStatus(StrEnum):
@@ -48,19 +47,9 @@ class StatusCommand:
         else:
             packages_to_check = uvault_sources
 
-        client = get_github_client()
-        if not client:
-            print(
-                "WARNING: PyGithub is not installed or no GitHub token is configured in ~/.config/uvault/config.toml."
-            )
-            print(
-                "Status information will be limited. Install PyGithub and configure a token for full functionality."
-            )
-            print()
-
         package_statuses = []
         for pkg, source in packages_to_check.items():
-            package_status = self._check_package(pkg, source, client)
+            package_status = self._check_package(pkg, source)
             package_statuses.append(package_status)
 
         # Sorting
@@ -88,53 +77,14 @@ class StatusCommand:
 
         return 0
 
-    def _fetch_github_metadata(
-        self, repo, pkg_status: PackageStatus, source: PackageSource
-    ) -> str | None:
-        remote_sha = None
-
-        if pkg_status.ref_type == RefType.PR:
-            pr_num = int(pkg_status.ref_value)
-            pr = repo.get_pull(pr_num)
-
-            if pr.merged:
-                pkg_status.status = PullRequestStatus.MERGED
-            elif pr.state == "closed":
-                pkg_status.status = PullRequestStatus.CLOSED
-            else:
-                pkg_status.status = PullRequestStatus.OPEN
-
-            ignore_labels = self.project.tool_uvault.get(
-                "ignore_labels", ["mod:", "series:"]
-            )
-            pkg_status.labels = [
-                label.name
-                for label in pr.labels
-                if not any(label.name.startswith(prefix) for prefix in ignore_labels)
-            ]
-            pkg_status.last_activity = pr.updated_at
-            remote_sha = pr.head.sha
-
-        elif pkg_status.ref_type == RefType.BRANCH:
-            try:
-                branch = repo.get_branch(pkg_status.ref_value)
-                pkg_status.status = PullRequestStatus.ACTIVE
-                commit = branch.commit.commit
-                pkg_status.last_activity = commit.author.date
-                remote_sha = branch.commit.sha
-            except Exception:
-                pkg_status.status = PullRequestStatus.UNKNOWN
-
-        return remote_sha
-
     def _calculate_divergence(
-        self, repo, pkg_status: PackageStatus, remote_sha: str | None, client
+        self,
+        forge,
+        pkg_status: PackageStatus,
+        remote_sha: str | None,
+        uv_source: PackageSource,
     ):
         if not remote_sha:
-            return
-
-        uv_source = self.project.uv_sources.get(pkg_status.name)
-        if not uv_source:
             return
 
         vaulted_ref = uv_source.get_git_reference()
@@ -144,17 +94,8 @@ class StatusCommand:
         vaulted_sha = None
         if vaulted_ref.ref_type == RefType.REV:
             vaulted_sha = vaulted_ref.value
-        elif client:
-            # Fast retrieval via GitHub API
-            try:
-                if vaulted_ref.ref_type == RefType.TAG:
-                    gh_ref = repo.get_git_ref(f"tags/{vaulted_ref.value}")
-                    vaulted_sha = gh_ref.object.sha
-                elif vaulted_ref.ref_type == RefType.BRANCH:
-                    gh_branch = repo.get_branch(vaulted_ref.value)
-                    vaulted_sha = gh_branch.commit.sha
-            except Exception:
-                pass
+        elif forge:
+            vaulted_sha = forge.get_remote_sha(vaulted_ref.ref_type, vaulted_ref.value)
 
         if not vaulted_sha:
             # Fallback to ls-remote if API fails or is not available
@@ -166,15 +107,14 @@ class StatusCommand:
                 pass
 
         if vaulted_sha and vaulted_sha != remote_sha:
-            try:
-                comp = repo.compare(vaulted_sha, remote_sha)
-                pkg_status.behind = comp.ahead_by
-                if comp.status == "diverged" or comp.behind_by > 0:
-                    pkg_status.diverged = True
-            except Exception:
-                pass
+            if forge:
+                divergence = forge.get_divergence(vaulted_sha, remote_sha)
+                if divergence:
+                    behind, diverged = divergence
+                    pkg_status.behind = behind
+                    pkg_status.diverged = diverged
 
-    def _check_package(self, pkg: str, source: PackageSource, client) -> PackageStatus:
+    def _check_package(self, pkg: str, source: PackageSource) -> PackageStatus:
         origin_url = source.origin_url
         if not origin_url:
             return PackageStatus(
@@ -193,7 +133,8 @@ class StatusCommand:
         ref_type = git_ref.ref_type if git_ref else RefType.UNKNOWN
         ref_value = git_ref.value if git_ref else ""
 
-        path = get_github_repo_path(origin_url)
+        forge = source.get_forge()
+        path = forge.path if hasattr(forge, "path") else None
 
         pkg_status = PackageStatus(
             name=pkg,
@@ -207,13 +148,14 @@ class StatusCommand:
             last_activity=None,
         )
 
-        if client and path:
-            try:
-                repo = client.get_repo(path)
-                remote_sha = self._fetch_github_metadata(repo, pkg_status, source)
-                self._calculate_divergence(repo, pkg_status, remote_sha, client)
-            except Exception:
-                pass
+        if forge:
+            ignore_labels = self.project.tool_uvault.get(
+                "ignore_labels", ["mod:", "series:"]
+            )
+            remote_sha = forge.enrich_package_status(pkg_status, ignore_labels)
+            uv_source = self.project.uv_sources.get(pkg_status.name)
+            if uv_source:
+                self._calculate_divergence(forge, pkg_status, remote_sha, uv_source)
 
         return pkg_status
 

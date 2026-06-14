@@ -29,7 +29,7 @@ def test_status_get_color():
     assert cmd._get_status_color("UNKNOWN") == "⚪"
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_run(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -107,7 +107,7 @@ def test_status_run(mock_pyproject, mock_get_client, capsys):
     assert "pkg-a" not in captured.out
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_run_no_client(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -121,11 +121,10 @@ def test_status_run_no_client(mock_pyproject, mock_get_client, capsys):
     cmd = StatusCommand(packages=None, format_type="list", sort_by="name")
     assert cmd.run() == 0
     captured = capsys.readouterr()
-    assert "WARNING: PyGithub is not installed" in captured.out
     assert "UNKNOWN" in captured.out
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_pr_merged(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -152,7 +151,7 @@ def test_status_pr_merged(mock_pyproject, mock_get_client, capsys):
     assert "MERGED" in captured.out
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_pr_closed(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -180,7 +179,7 @@ def test_status_pr_closed(mock_pyproject, mock_get_client, capsys):
     assert "CLOSED" in captured.out
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_pr_exception(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -207,7 +206,7 @@ def test_status_pr_exception(mock_pyproject, mock_get_client, capsys):
     assert "UNKNOWN" in captured.out
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_behind(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -314,7 +313,7 @@ def test_status_behind(mock_pyproject, mock_get_client, capsys):
         assert "+5 commits (Force-Push detecté!)" in captured.out
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_compare_diverged(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -349,7 +348,7 @@ def test_status_compare_diverged(mock_pyproject, mock_get_client, capsys):
     assert "Force-Push detecté!" in captured.out
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_vaulted_tag(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -387,7 +386,7 @@ def test_status_vaulted_tag(mock_pyproject, mock_get_client, capsys):
     mock_repo_a.get_git_ref.assert_called_once_with("tags/v1.0")
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_vaulted_branch(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -432,7 +431,7 @@ def test_status_vaulted_branch(mock_pyproject, mock_get_client, capsys):
     assert cmd.run() == 0
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_vaulted_fallback(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -475,7 +474,7 @@ def test_status_vaulted_fallback(mock_pyproject, mock_get_client, capsys):
         mock_vcs.get_remote_sha.assert_called_once()
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_no_origin_url(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -490,7 +489,7 @@ def test_status_no_origin_url(mock_pyproject, mock_get_client, capsys):
     assert "UNKNOWN" in captured.out
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_github_api_failure(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -512,7 +511,7 @@ def test_status_github_api_failure(mock_pyproject, mock_get_client, capsys):
     assert "UNKNOWN" in captured.out
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_parse_ref_type_exceptions(mock_pyproject, mock_get_client, capsys):
     mock_proj = mock_pyproject.return_value
@@ -545,7 +544,7 @@ def test_status_parse_ref_type_exceptions(mock_pyproject, mock_get_client, capsy
         assert cmd.run() == 0
 
 
-@patch("uvault.status.get_github_client")
+@patch("uvault.github.GitHubForge._get_client")
 @patch("uvault.status.PyProject")
 def test_status_uv_source_none(mock_pyproject, mock_get_client, capsys):
     from datetime import datetime, timezone

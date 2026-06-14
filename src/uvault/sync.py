@@ -111,9 +111,9 @@ class PackageSyncer:
                     sha, origin_git, vault_fetch_url, vault_push_url, tag_name, repo_dir
                 )
             except subprocess.CalledProcessError:
-                from uvault.github import attempt_github_fork
+                target_org = self.vault_config.get("owner")
 
-                if attempt_github_fork(origin_git, self.vault_config):
+                if target_org and self.uvault_source.fork(target_org):
                     # Retry the vaulting after successful fork
                     self._do_vaulting(
                         sha,
