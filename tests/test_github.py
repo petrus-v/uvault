@@ -12,6 +12,11 @@ except ImportError:
 requires_github = pytest.mark.skipif(not HAS_GITHUB, reason="pygithub not installed")
 
 
+@pytest.fixture(autouse=True)
+def reset_github_cache():
+    GitHubForge._clients.clear()
+
+
 @patch("uvault.github.read_user_config")
 def test_github_forge_fork_no_token(mock_read_user_config):
     mock_read_user_config.return_value = {}
@@ -150,3 +155,18 @@ def test_get_github_client_import_error(mock_read_user_config):
     mock_read_user_config.return_value = {"github": {"token": "token123"}}
     with patch.dict("sys.modules", {"github": None}):
         assert GitHubForge._get_client() is None
+
+
+@requires_github
+@patch("uvault.github.read_user_config")
+@patch("github.Github")
+@patch("github.Auth.Token")
+def test_get_github_client_cached(
+    mock_token_class, mock_github_class, mock_read_user_config
+):
+    mock_read_user_config.return_value = {"github": {"token": "token123"}}
+    client1 = GitHubForge._get_client()
+    client2 = GitHubForge._get_client()
+    assert client1 is not None
+    assert client1 is client2
+    mock_github_class.assert_called_once()

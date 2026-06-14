@@ -10,8 +10,13 @@ if TYPE_CHECKING:
 
 
 class GitHubForge(Forge):
-    @staticmethod
-    def _get_client(allow_anonymous: bool = True):
+    _clients = {}
+
+    @classmethod
+    def _get_client(cls, allow_anonymous: bool = True):
+        if allow_anonymous in cls._clients:
+            return cls._clients[allow_anonymous]
+
         user_config = read_user_config()
         token = user_config.get("github", {}).get("token")
         try:
@@ -19,13 +24,17 @@ class GitHubForge(Forge):
 
             if token:
                 auth = Auth.Token(token)
-                return Github(auth=auth)
+                client = Github(auth=auth)
+                cls._clients[allow_anonymous] = client
+                return client
             elif allow_anonymous:
                 print(
                     "WARNING: No GitHub token configured in ~/.config/uvault/config.toml.\n"
                     "Using unauthenticated access. You may hit rate limits."
                 )
-                return Github()
+                client = Github()
+                cls._clients[allow_anonymous] = client
+                return client
             else:
                 return None
         except ImportError:
