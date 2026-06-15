@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 from uvault.vcs import (
     VcsProvider,
-    GitReference,
+    VcsReference,
     RefType,
     get_repo_name,
     compute_vault_urls,
@@ -174,7 +174,7 @@ class SyncCommand:
             repo_name = get_repo_name(origin_git)
             vault_fetch_url, _ = compute_vault_urls(repo_name, vault_config)
             current_sha = vcs.get_remote_sha(
-                vault_fetch_url, GitReference(RefType.TAG, tag_str)
+                vault_fetch_url, VcsReference(RefType.TAG, tag_str)
             )
 
         if current_sha:

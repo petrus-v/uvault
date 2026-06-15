@@ -1,7 +1,8 @@
 import tomlkit
+import tomlkit.items
 from typing import TYPE_CHECKING
 
-from uvault.vcs import get_vcs, VcsProvider, GitReference
+from uvault.vcs import get_vcs, VcsProvider, VcsReference
 
 if TYPE_CHECKING:
     from uvault.forge import Forge
@@ -59,11 +60,11 @@ class PackageSource:
             return forge.fork(target_org)
         return False
 
-    def get_git_reference(self) -> GitReference | None:
+    def get_git_reference(self) -> VcsReference | None:
         """Extract the git reference from the configuration."""
         if not self.origin_url:
             return None
-        return GitReference.from_config(self.config)
+        return VcsReference.from_config(self.config)
 
     def update(self, **kwargs) -> None:
         """Update source properties, maintaining any unused/unknown configuration parameters."""

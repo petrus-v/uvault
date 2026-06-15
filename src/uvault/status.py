@@ -138,7 +138,7 @@ class StatusCommand:
 
         pkg_status = PackageStatus(
             name=pkg,
-            source_url=path or origin_url,
+            source_url=str(path or origin_url or ""),
             ref_type=ref_type,
             ref_value=ref_value,
             status=PullRequestStatus.UNKNOWN,

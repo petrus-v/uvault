@@ -1,6 +1,7 @@
 from unittest.mock import patch, MagicMock
-from uvault.status import StatusCommand, PackageStatus
+from uvault.status import StatusCommand, PackageStatus, PullRequestStatus
 from uvault.source import PackageSource
+from uvault.vcs import RefType
 from datetime import datetime, timezone, timedelta
 
 
@@ -225,9 +226,9 @@ def test_status_behind(mock_pyproject, mock_get_client, capsys):
             PackageStatus(
                 name="pkg-b",
                 source_url="org/repoa",
-                ref_type="BRANCH",
+                ref_type=RefType.BRANCH,
                 ref_value="main",
-                status="ACTIVE",
+                status=PullRequestStatus.ACTIVE,
                 behind=5,
                 diverged=True,
                 labels=[],
@@ -236,9 +237,9 @@ def test_status_behind(mock_pyproject, mock_get_client, capsys):
             PackageStatus(
                 name="pkg-a",
                 source_url="org/" + ("very_long_repo_name_" * 5),
-                ref_type="BRANCH",
+                ref_type=RefType.BRANCH,
                 ref_value="main",
-                status="ACTIVE",
+                status=PullRequestStatus.ACTIVE,
                 behind=0,
                 diverged=False,
                 labels=[],
@@ -256,9 +257,9 @@ def test_status_behind(mock_pyproject, mock_get_client, capsys):
             PackageStatus(
                 name="pkg-a",
                 source_url="org/" + ("very_long_repo_name_" * 5),
-                ref_type="BRANCH",
+                ref_type=RefType.BRANCH,
                 ref_value="main",
-                status="ACTIVE",
+                status=PullRequestStatus.ACTIVE,
                 behind=0,
                 diverged=False,
                 labels=[],
@@ -267,9 +268,9 @@ def test_status_behind(mock_pyproject, mock_get_client, capsys):
             PackageStatus(
                 name="pkg-b",
                 source_url="org/repoa",
-                ref_type="BRANCH",
+                ref_type=RefType.BRANCH,
                 ref_value="main",
-                status="ACTIVE",
+                status=PullRequestStatus.ACTIVE,
                 behind=5,
                 diverged=True,
                 labels=[],
@@ -287,9 +288,9 @@ def test_status_behind(mock_pyproject, mock_get_client, capsys):
             PackageStatus(
                 name="pkg-a",
                 source_url="org/" + ("very_long_repo_name_" * 5),
-                ref_type="BRANCH",
+                ref_type=RefType.BRANCH,
                 ref_value="main",
-                status="ACTIVE",
+                status=PullRequestStatus.ACTIVE,
                 behind=0,
                 diverged=False,
                 labels=[],
@@ -298,9 +299,9 @@ def test_status_behind(mock_pyproject, mock_get_client, capsys):
             PackageStatus(
                 name="pkg-b",
                 source_url="org/repoa",
-                ref_type="BRANCH",
+                ref_type=RefType.BRANCH,
                 ref_value="main",
-                status="ACTIVE",
+                status=PullRequestStatus.ACTIVE,
                 behind=5,
                 diverged=True,
                 labels=[],

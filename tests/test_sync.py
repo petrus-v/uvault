@@ -524,23 +524,26 @@ def test_sync_include_project_version_false(mock_run, tmp_path):
 
 
 def test_git_reference_args():
-    from uvault.vcs import GitReference, RefType
+    from uvault.vcs import VcsReference, RefType
 
-    assert GitReference(RefType.TAG, "v1.0").get_ls_remote_args() == ["--tags", "v1.0"]
-    assert GitReference(RefType.BRANCH, "main").get_ls_remote_args() == [
+    assert VcsReference(RefType.TAG, "v1.0").get_ls_remote_args() == ["--tags", "v1.0"]
+    assert VcsReference(RefType.BRANCH, "main").get_ls_remote_args() == [
         "--heads",
         "main",
     ]
-    assert GitReference(RefType.REV, "123").get_ls_remote_args() == ["123"]
+    assert VcsReference(RefType.REV, "123").get_ls_remote_args() == ["123"]
 
 
 def test_git_reference_from_config():
-    from uvault.vcs import GitReference, RefType
+    from uvault.vcs import VcsReference, RefType
 
-    assert GitReference.from_config({"tag": "v1.0"}).ref_type == RefType.TAG
-    assert GitReference.from_config({"branch": "main"}).ref_type == RefType.BRANCH
-    assert GitReference.from_config({"rev": "123"}).ref_type == RefType.REV
-    assert GitReference.from_config({}) is None
+    ref_tag = VcsReference.from_config({"tag": "v1.0"})
+    assert ref_tag and ref_tag.ref_type == RefType.TAG
+    ref_branch = VcsReference.from_config({"branch": "main"})
+    assert ref_branch and ref_branch.ref_type == RefType.BRANCH
+    ref_rev = VcsReference.from_config({"rev": "123"})
+    assert ref_rev and ref_rev.ref_type == RefType.REV
+    assert VcsReference.from_config({}) is None
 
 
 @patch("uvault.vcs.subprocess.run")
@@ -741,7 +744,10 @@ def test_sync_release_no_tag_in_uv_source(mock_run, temp_pyproject, tmp_path, ca
 def test_sync_fork_success(mock_fork, mock_run, temp_pyproject, tmp_path, capsys):
     mock_fork.return_value = True
 
+    push_failed = False
+
     def mock_run_side_effect(*args, **kwargs):
+        nonlocal push_failed
         mock_result = MagicMock()
         if args[0][:2] == ["git", "ls-remote"]:
             if "--tags" in args[0]:
@@ -750,14 +756,13 @@ def test_sync_fork_success(mock_fork, mock_run, temp_pyproject, tmp_path, capsys
                 mock_result.stdout = "1234abcd refs/pull/123/head\n"
         elif args[0][:2] == ["git", "-C"] and "push" in args[0]:
             # Fail the first push, succeed the second
-            if getattr(mock_run_side_effect, "push_failed", False):
+            if push_failed:
                 return mock_result
             else:
-                mock_run_side_effect.push_failed = True
+                push_failed = True
                 raise subprocess.CalledProcessError(1, args[0])
         return mock_result
 
-    mock_run_side_effect.push_failed = False
     mock_run.side_effect = mock_run_side_effect
 
     cmd = SyncCommand(pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache")
@@ -814,7 +819,10 @@ def test_sync_fork_success_release(
     with open(temp_pyproject, "w") as f:
         f.write(tomlkit.dumps(doc))
 
+    push_failed = False
+
     def mock_run_side_effect(*args, **kwargs):
+        nonlocal push_failed
         mock_result = MagicMock()
         if args[0][:2] == ["git", "ls-remote"]:
             if (
@@ -824,7 +832,7 @@ def test_sync_fork_success_release(
             ):
                 mock_result.stdout = "1234abcd refs/tags/apycod-1.0.0\n"
             elif "--tags" in args[0]:
-                if getattr(mock_run_side_effect, "push_failed", False):
+                if push_failed:
                     mock_result.stdout = ""
                 else:
                     mock_result.stdout = ""
@@ -832,14 +840,13 @@ def test_sync_fork_success_release(
                 mock_result.stdout = "1234abcd refs/pull/123/head\n"
         elif args[0][:2] == ["git", "-C"] and "push" in args[0]:
             # Fail the first push, succeed the second
-            if getattr(mock_run_side_effect, "push_failed", False):
+            if push_failed:
                 return mock_result
             else:
-                mock_run_side_effect.push_failed = True
+                push_failed = True
                 raise subprocess.CalledProcessError(1, args[0])
         return mock_result
 
-    mock_run_side_effect.push_failed = False
     mock_run.side_effect = mock_run_side_effect
 
     cmd = SyncCommand(

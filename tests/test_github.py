@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from uvault.github import GitHubForge
 
 try:
-    import github  # noqa: F401
+    import github  # type: ignore # noqa: F401
 
     HAS_GITHUB = True
 except ImportError:
@@ -94,7 +94,7 @@ def test_github_forge_fork_empty_path(mock_read_user_config):
 @patch("uvault.github.read_user_config")
 @patch("github.Github")
 def test_github_forge_fork_github_exception(mock_github_class, mock_read_user_config):
-    from github.GithubException import GithubException
+    from github.GithubException import GithubException  # type: ignore
 
     mock_read_user_config.return_value = {"github": {"token": "token123"}}
     mock_github = mock_github_class.return_value

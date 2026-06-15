@@ -20,7 +20,7 @@ class GitHubForge(Forge):
         user_config = read_user_config()
         token = user_config.get("github", {}).get("token")
         try:
-            from github import Github, Auth
+            from github import Github, Auth  # type: ignore
 
             if token:
                 auth = Auth.Token(token)
@@ -69,7 +69,7 @@ class GitHubForge(Forge):
             return False
 
         try:
-            from github.GithubException import GithubException
+            from github.GithubException import GithubException  # type: ignore
         except ImportError:
             return False
 

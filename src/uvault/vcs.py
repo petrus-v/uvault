@@ -1,4 +1,5 @@
 import abc
+import typing
 import subprocess
 import re
 from pathlib import Path
@@ -23,7 +24,7 @@ def guess_repository_url(package_name: str) -> str | None:
         return None
 
     urls = []
-    homepage = meta.get("Home-page")
+    homepage = typing.cast(typing.Any, meta).get("Home-page")
     if homepage:
         urls.append(("Home-page", homepage))
 
@@ -94,12 +95,12 @@ def compute_vault_urls(repo_name: str, vault_config: dict) -> tuple[str, str]:
 
 
 @dataclass
-class GitReference:
+class VcsReference:
     ref_type: RefType
     value: str
 
     @classmethod
-    def from_config(cls, source_cfg: dict) -> "GitReference | None":
+    def from_config(cls, source_cfg: dict) -> "VcsReference | None":
         for key in ["rev", "tag", "branch"]:
             if key in source_cfg:
                 val = source_cfg[key]
@@ -128,7 +129,7 @@ class GitReference:
 
 class VcsProvider(abc.ABC):
     @abc.abstractmethod
-    def get_remote_sha(self, origin_url: str, ref: GitReference) -> str | None:
+    def get_remote_sha(self, origin_url: str, ref: VcsReference) -> str | None:
         pass  # pragma: no cover
 
     @abc.abstractmethod
@@ -164,7 +165,7 @@ class VcsProvider(abc.ABC):
 
     @abc.abstractmethod
     def checkout_reference(
-        self, repo_dir: Path, origin_url: str, ref: GitReference | None, branch: str
+        self, repo_dir: Path, origin_url: str, ref: VcsReference | None, branch: str
     ) -> bool:
         pass  # pragma: no cover
 
@@ -178,7 +179,7 @@ class VcsProvider(abc.ABC):
 
 
 class GitVcs(VcsProvider):
-    def get_remote_sha(self, origin_url: str, ref: GitReference) -> str | None:
+    def get_remote_sha(self, origin_url: str, ref: VcsReference) -> str | None:
         args = ["git", "ls-remote", origin_url] + ref.get_ls_remote_args()
         try:
             result = subprocess.run(
@@ -213,9 +214,9 @@ class GitVcs(VcsProvider):
         return False
 
     def fetch_commit_from_reference(
-        self, repo_dir: Path, origin_url: str, ref: GitReference | str
+        self, repo_dir: Path, origin_url: str, ref: VcsReference | str
     ) -> str | None:
-        if isinstance(ref, GitReference):
+        if isinstance(ref, VcsReference):
             sha = self.get_remote_sha(origin_url, ref)
         else:
             sha = ref
@@ -292,7 +293,7 @@ class GitVcs(VcsProvider):
         subprocess.run(args, check=True)
 
     def checkout_reference(
-        self, repo_dir: Path, origin_url: str, ref: GitReference | None, branch: str
+        self, repo_dir: Path, origin_url: str, ref: VcsReference | None, branch: str
     ) -> bool:
         if not ref:
             print("Error: No VCS reference provided.")

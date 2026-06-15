@@ -1,10 +1,12 @@
 import tomlkit
+import tomlkit.items
 from pathlib import Path
 
 from uvault.source import PackageSource
 
 
 import re
+import typing
 
 
 def normalize_pkg_name(name: str) -> str:
@@ -28,7 +30,7 @@ class PyProject:
 
     def __init__(self, path: str | Path):
         self.path = Path(path)
-        self.doc: tomlkit.TOMLDocument | None = None
+        self.doc: typing.Any = None
 
     def read(self):
         if not self.path.exists():
