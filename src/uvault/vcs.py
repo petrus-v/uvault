@@ -5,10 +5,10 @@ from pathlib import Path
 from dataclasses import dataclass
 from urllib.parse import urlparse
 from importlib.metadata import metadata, PackageNotFoundError
-from enum import StrEnum
+from enum import Enum
 
 
-class RefType(StrEnum):
+class RefType(str, Enum):
     PR = "PR"
     BRANCH = "BRANCH"
     TAG = "TAG"

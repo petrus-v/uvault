@@ -1,14 +1,14 @@
 import datetime
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 
 from uvault.project import PyProject
 from uvault.source import PackageSource
 from uvault.vcs import RefType
 
 
-class PullRequestStatus(StrEnum):
+class PullRequestStatus(str, Enum):
     MERGED = "MERGED"
     OPEN = "OPEN"
     CLOSED = "CLOSED"
