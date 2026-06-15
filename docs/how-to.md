@@ -133,3 +133,50 @@ replace = 'version = "{new_version}"'
 3. It pushes a new tag to the vault pointing to the exact same commit, without pulling new updates from the upstream repository. The tag name will be cleaner (e.g. `apycod-1.0.1`) if `include_sha_in_release` is `false`, or it will include the SHA (e.g. `apycod-1.0.1+<sha>`) if left to its default `true`.
 4. It updates `[tool.uv.sources]` with the newly generated tags.
 5. If any package is currently in `develop` mode (meaning it doesn't have a vaulted tag in `uv.sources`), `uvault` will revert it to a standard vaulted state before tagging (unless you run it with `--keep-develop`, which would skip the package).
+
+### Step 5: Monitoring dependencies (`uvault status`)
+
+The `uvault status` command allows you to inspect the current state of all your vaulted dependencies, helping you keep track of pull requests, identify merged code, and detect potential force-pushes or commit lag.
+
+#### Prerequisites: GitHub Integration
+To get the most out of the `status` command when working with GitHub repositories, you should install the `github` optional dependencies. This allows `uvault` to fetch pull request metadata directly from the GitHub API.
+
+```bash
+uv tool install uvault[github]
+# or run directly with uvx
+uvx --from uvault[github] uvault status
+```
+
+**Crucial Step:** To avoid GitHub API rate limits (which will cause `uvault` to automatically retry requests, significantly slowing down the command), you should configure a GitHub Personal Access Token in your `~/.config/uvault/config.toml`:
+
+```toml
+[github]
+token = "ghp_your_personal_access_token_here"
+```
+
+#### Understanding the Output
+
+When you run `uvault status`, the tool compares the commit currently vaulted in your `pyproject.toml` against the latest state of the target branch or pull request.
+
+The command reports several key metrics:
+- **Status**: The state of the pull request (if applicable). It can be `ACTIVE` (open), `MERGED` (code is in the base branch), `CLOSED` (rejected/closed), or `UNKNOWN` (cannot determine, e.g. for simple branch references).
+- **Lag**: The number of commits your vaulted reference is behind the latest remote head.
+- **Diverged**: A warning flag (`True`/`False`) indicating if a force-push occurred on the remote branch, meaning your vaulted commit is no longer part of the remote history.
+
+#### Formatting and Sorting
+
+You can customize the output using the `--format` and `--sort-by` options:
+
+- **Formatting (`--format`)**:
+  - `table` (Default): Displays a rich, aligned table with all metrics.
+  - `list`: A detailed, multi-line format perfect for reading complete descriptions.
+  - `inline`: A concise, single-line per package format, useful for quick scanning or piping to other tools.
+
+- **Sorting (`--sort-by`)**:
+  - `name` (Default): Alphabetical order by package name.
+  - `status`: Groups packages by their pull request status (e.g., all `MERGED` packages together), making it easy to identify dependencies that need cleanup.
+
+Example:
+```bash
+uvx --from uvault[github] uvault status --format table --sort-by status
+```

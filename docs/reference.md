@@ -177,13 +177,15 @@ Displays a real-time summary of your VCS dependencies (branches, pull requests) 
 **Workflow Details:**
 
 For each package configured in `[tool.uvault.sources]`, `uvault status` queries the GitHub API to fetch the state of the targeted reference:
+
 - **PRs**: Indicates whether they are `OPEN`, `MERGED`, or `CLOSED`. Also surfaces relevant PR labels (excluding prefixes defined in `ignore_labels`, by default `mod:` and `series:`).
 - **Branches**: Displays an `ACTIVE` status.
 
 It then compares the commit currently vaulted locally (via `[tool.uv.sources]`) against the remote tip to show:
+
 - The number of **new commits** available (`behind`).
 - Whether a **history rewrite (Force-Push)** occurred on the remote branch, leaving your vaulted commit orphaned.
 
-*Note: The `status` functionality requires the `pygithub` optional dependency (`uv pip install uvault[github]`) and a valid token configured in `~/.config/uvault/config.toml`.*
+> **Note:** The `status` functionality requires the `pygithub` optional dependency (`uv pip install uvault[github]`) and a valid token configured in `~/.config/uvault/config.toml`.
 
 ::: uvault.cli
