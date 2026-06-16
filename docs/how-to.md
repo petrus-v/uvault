@@ -139,6 +139,7 @@ replace = 'version = "{new_version}"'
 The `uvault status` command allows you to inspect the current state of all your vaulted dependencies, helping you keep track of pull requests, identify merged code, and detect potential force-pushes or commit lag.
 
 #### Prerequisites: GitHub Integration
+
 To get the most out of the `status` command when working with GitHub repositories, you should install the `github` optional dependencies. This allows `uvault` to fetch pull request metadata directly from the GitHub API.
 
 ```bash
