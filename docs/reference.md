@@ -13,7 +13,7 @@ uv add --dev uvault[github]
 uv run uvault --help
 ```
 
-*Note: The `[github]` extra installs `pygithub`, which enables `uvault sync` to automatically fork repositories into your GitHub organization if they don't already exist.*
+*Note: The `[github]` extra installs `pygithub`, which enables `uvault sync` to automatically fork repositories into your GitHub organization if they don't already exist, and `uvault status` to retrieve information on the status of pull requests or branches.*
 
 ### 2. As an Independent Tool via `uvx`
 
