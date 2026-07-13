@@ -4,6 +4,7 @@ from uvault.sync import SyncCommand
 from uvault.develop import DevelopCommand
 from uvault.add import AddCommand
 from uvault.status import StatusCommand
+from uvault.check import CheckCommand
 
 
 def main(argv=None):
@@ -95,6 +96,22 @@ def main(argv=None):
         help="Sort the results by status, last activity date, or name. Default is name.",
     )
 
+    # Check command
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Check that all uvault dependencies are synced and none are in develop mode.",
+    )
+    check_parser.add_argument(
+        "--no-auto-fix",
+        action="store_true",
+        help="Disable automatic fixing of pyproject.toml.",
+    )
+    check_parser.add_argument(
+        "--delete-extra",
+        action="store_true",
+        help="Remove extra packages from [tool.uv.sources] that are not in [tool.uvault.sources].",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "sync":
@@ -133,6 +150,12 @@ def main(argv=None):
             packages=args.package,
             format_type=args.format,
             sort_by=args.sort_by,
+        )
+        return cmd.run()
+    elif args.command == "check":
+        cmd = CheckCommand(
+            auto_fix=not args.no_auto_fix,
+            delete_extra=args.delete_extra,
         )
         return cmd.run()
 

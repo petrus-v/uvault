@@ -24,6 +24,7 @@ class PackageSyncer:
         include_sha_in_release: bool = True,
         current_sha: str | None = None,
         is_release: bool = False,
+        vaulting: bool = True,
     ):
         self.pkg = pkg
         self.uvault_source = uvault_source
@@ -36,6 +37,7 @@ class PackageSyncer:
         self.include_sha_in_release = include_sha_in_release
         self.current_sha = current_sha
         self.is_release = is_release
+        self.vaulting = vaulting
 
     def _do_vaulting(
         self,
@@ -96,7 +98,9 @@ class PackageSyncer:
             repo_name, self.vault_config
         )
 
-        if not self.force_update and self.vcs.remote_tag_exists(
+        if not self.vaulting:
+            print(f"Skipping vaulting for {self.pkg} (read-only/dry-run).")
+        elif not self.force_update and self.vcs.remote_tag_exists(
             vault_push_url, tag_name
         ):
             print(
@@ -144,6 +148,8 @@ class SyncCommand:
         pyproject_path: str = "pyproject.toml",
         cache_dir: str = "~/.cache/uvault",
         release: bool = False,
+        vaulting: bool = True,
+        dry_run: bool = False,
     ):
         if isinstance(packages, str):
             self.packages = [packages]
@@ -155,6 +161,8 @@ class SyncCommand:
         self.pyproject_path = Path(pyproject_path)
         self.cache_dir = Path(cache_dir).expanduser()
         self.release = release
+        self.vaulting = vaulting
+        self.dry_run = dry_run
 
     def _get_release_sha(
         self,
@@ -284,6 +292,7 @@ class SyncCommand:
                 include_sha_in_release=project.include_sha_in_release,
                 current_sha=current_sha,
                 is_release=self.release,
+                vaulting=self.vaulting,
             )
 
             new_source = syncer.process()
@@ -301,9 +310,13 @@ class SyncCommand:
                     )
                     has_changes = True
 
+        self.has_changes = has_changes
         if has_changes:
-            project.write()
-            print("Updated pyproject.toml")
-            print("Please run `uv sync` or `uv lock` to update your uv.lock file.")
+            if not self.dry_run:
+                project.write()
+                print("Updated pyproject.toml")
+                print("Please run `uv sync` or `uv lock` to update your uv.lock file.")
+            else:
+                print("Dry-run: pyproject.toml would be updated.")
 
         return 0

@@ -181,3 +181,27 @@ Example:
 ```bash
 uvx --from uvault[github] uvault status --format table --sort-by status
 ```
+
+### Step 6: Ensuring reproducibility in CI and development (`pre-commit`)
+
+To guarantee that developers do not accidentally commit packages left in local `develop` mode (editable paths) and that the `uv.lock` file is always up-to-date, we recommend configuring `pre-commit` hooks.
+
+!!! important "Hook Ordering"
+    It is important to place the `uvault-check` hook **before** the `uv-lock` hook. Since `uvault-check` can automatically fix mismatches in `pyproject.toml` (auto-fix is enabled by default), running it first allows `uv-lock` to subsequently detect the changes and automatically regenerate `uv.lock`. If you want to disable the auto-fix feature, you can pass the `--no-auto-fix` argument.
+
+Here is an example `.pre-commit-config.yaml` configuration:
+
+```yaml
+repos:
+  # Verify that no vaulted dependencies are left in develop/editable mode and auto-fix if possible
+  - repo: https://github.com/petrus-v/uvault
+    rev: v0.5.1  # Use the latest version
+    hooks:
+      - id: uvault-check
+
+  # Verify that uv.lock is synchronized with pyproject.toml (and auto-fix/regenerate uv.lock)
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.11.28  # Use the latest version
+    hooks:
+      - id: uv-lock
+```

@@ -1,0 +1,7 @@
+- id: uvault-check
+  name: uvault check
+  description: Ensure all uvault dependencies are synced and none are in develop mode.
+  entry: uvault check
+  language: python
+  files: ^pyproject\.toml$
+  pass_filenames: false

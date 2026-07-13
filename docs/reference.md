@@ -188,4 +188,23 @@ It then compares the commit currently vaulted locally (via `[tool.uv.sources]`) 
 
 > **Note:** The `status` functionality requires the `pygithub` optional dependency (`uv pip install uvault[github]`) and a valid token configured in `~/.config/uvault/config.toml`.
 
+### `uvault check`
+
+Verifies that your project's dependencies are in a clean, reproducible state. This is especially useful when integrated as a `pre-commit` hook.
+
+**Options:**
+
+* `--no-auto-fix` : Disable automatic fixing of `pyproject.toml`. By default, `uvault check` will automatically restore develop packages to their vaulted state and add missing packages (without pushing/vaulting to the remote vault).
+* `--delete-extra` : Ensure that any extra packages in `[tool.uv.sources]` that are not declared in `[tool.uvault.sources]` are removed.
+
+**Workflow Details:**
+
+It performs the following checks on your `pyproject.toml` file:
+
+1. Ensures that every package defined under `[tool.uvault.sources]` is present in `[tool.uv.sources]`.
+2. Verifies that none of these dependencies are left in local `develop` mode (e.g., using `path = ...` or `editable = true`).
+3. If `--delete-extra` is specified, ensures that no extra packages exist in `[tool.uv.sources]` that are not defined in `[tool.uvault.sources]`.
+
+If any check fails or if any auto-fixes/modifications are made to `pyproject.toml`, the command exits with code `1` (which blocks the commit in a `pre-commit` setup so you can review and add the changes). If all checks pass and no changes are needed, it exits with code `0`.
+
 ::: uvault.cli
