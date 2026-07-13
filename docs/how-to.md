@@ -15,7 +15,7 @@ uvx --with uvault[github] uvault <command>
 
 #### Alternative: Installing as a Project Development Dependency
 
-If you want `uvault add` to automatically discover repository URLs via local package metadata (which requires reading the metadata of packages already installed in your project), you can install `uvault` as a dev dependency:
+While running via `uvx` is the recommended approach, you can also install `uvault` as a development dependency inside your project:
 
 ```bash
 uv add --dev uvault[github]
@@ -38,7 +38,7 @@ Instead of manually editing the `pyproject.toml` file, use the `uvault add` comm
 uvault add my-package https://github.com/OCA/my-repo --pr 123 --subdirectory my_package
 ```
 
-If the repository URL is already known (published package), you can omit it and `uvault` will try to guess it from the package metadata:
+If the repository URL is already known (published package), you can omit it and `uvault` will try to guess it from the local package metadata or by querying the PyPI JSON API:
 ```bash
 uvault add my-package --branch 16.0
 ```

@@ -54,9 +54,72 @@ def test_guess_repository_url_gitlab():
         assert url == "https://gitlab.com/owner/repo"
 
 
-def test_guess_repository_url_not_found():
+@patch("uvault.vcs.guess_url_from_pypi", return_value=None)
+def test_guess_repository_url_not_found(mock_pypi):
     with patch("uvault.vcs.metadata", side_effect=PackageNotFoundError):
         assert guess_repository_url("unknown") is None
+
+
+@patch("uvault.vcs.guess_url_from_pypi")
+def test_guess_repository_url_empty_metadata_fallback(mock_pypi):
+    with patch("uvault.vcs.metadata") as mock_meta:
+        m = MagicMock()
+        m.get.return_value = None
+        m.get_all.return_value = []
+        mock_meta.return_value = m
+
+        guess_repository_url("some-pkg")
+        mock_pypi.assert_called_once_with("some-pkg")
+
+
+@patch("urllib.request.urlopen")
+def test_guess_url_from_pypi_success(mock_urlopen):
+    mock_resp = MagicMock()
+    mock_resp.status = 200
+    mock_resp.read.return_value = b'{"info": {"home_page": "http://home", "project_urls": {"Source": "https://github.com/foo/bar"}}}'
+    mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+    from uvault.vcs import guess_url_from_pypi
+
+    url = guess_url_from_pypi("some-pkg")
+    assert url == "https://github.com/foo/bar"
+
+
+@patch("urllib.request.urlopen")
+def test_guess_url_from_pypi_no_project_urls(mock_urlopen):
+    mock_resp = MagicMock()
+    mock_resp.status = 200
+    mock_resp.read.return_value = (
+        b'{"info": {"home_page": "http://home", "project_urls": null}}'
+    )
+    mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+    from uvault.vcs import guess_url_from_pypi
+
+    url = guess_url_from_pypi("some-pkg")
+    assert url == "http://home"
+
+
+@patch("urllib.request.urlopen")
+def test_guess_url_from_pypi_exception(mock_urlopen):
+    mock_urlopen.side_effect = Exception("network error")
+
+    from uvault.vcs import guess_url_from_pypi
+
+    url = guess_url_from_pypi("some-pkg")
+    assert url is None
+
+
+@patch("urllib.request.urlopen")
+def test_guess_url_from_pypi_not_200(mock_urlopen):
+    mock_resp = MagicMock()
+    mock_resp.status = 404
+    mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+    from uvault.vcs import guess_url_from_pypi
+
+    url = guess_url_from_pypi("some-pkg")
+    assert url is None
 
 
 def test_get_repo_name():

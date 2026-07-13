@@ -16,7 +16,7 @@ uvx --with uvault[github] uvault sync
 
 ### 2. As a Project Development Dependency
 
-If you want `uvault add` to automatically resolve repository URLs by reading the metadata of packages already installed in your local virtual environment, you can install it as a dev dependency:
+While running via `uvx` is the recommended approach, you can also install `uvault` as a development dependency inside your project:
 
 ```bash
 uv add --dev uvault[github]
@@ -154,7 +154,7 @@ Adds a new dependency intention directly into `[tool.uvault.sources]` without ma
 **Arguments:**
 
 * `<package>` : The name of the package to add.
-* `[url]` : (Optional) The VCS URL (e.g. `https://github.com/OCA/my-addon`). If omitted, `uvault` will attempt to guess it from PyPI metadata.
+* `[url]` : (Optional) The VCS URL (e.g. `https://github.com/OCA/my-addon`). If omitted, `uvault` will attempt to guess it from local package metadata or by querying the PyPI JSON API.
 
 **Options:**
 

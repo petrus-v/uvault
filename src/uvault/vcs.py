@@ -17,23 +17,7 @@ class RefType(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
-def guess_repository_url(package_name: str) -> str | None:
-    try:
-        meta = metadata(package_name)
-    except PackageNotFoundError:
-        return None
-
-    urls = []
-    homepage = typing.cast(typing.Any, meta).get("Home-page")
-    if homepage:
-        urls.append(("Home-page", homepage))
-
-    project_urls = meta.get_all("Project-URL") or []
-    for purl in project_urls:
-        if "," in purl:
-            name, url = purl.split(",", 1)
-            urls.append((name.strip(), url.strip()))
-
+def _find_best_url(urls: list[tuple[str, str]]) -> str | None:
     best_score = -1
     best_url = None
 
@@ -58,6 +42,61 @@ def guess_repository_url(package_name: str) -> str | None:
             best_url = url
 
     return best_url
+
+
+def guess_url_from_pypi(package_name: str) -> str | None:
+    import urllib.request
+    import json
+
+    url = f"https://pypi.org/pypi/{package_name}/json"
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "uvault"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode("utf-8"))
+                info = data.get("info", {})
+                urls = []
+
+                home_page = info.get("home_page")
+                if home_page:
+                    urls.append(("Home-page", home_page))
+
+                project_urls = info.get("project_urls")
+                if isinstance(project_urls, dict):
+                    for name, p_url in project_urls.items():
+                        if p_url:
+                            urls.append((name, p_url))
+
+                return _find_best_url(urls)
+    except Exception:
+        pass
+    return None
+
+
+def guess_repository_url(package_name: str) -> str | None:
+    try:
+        meta = metadata(package_name)
+        urls = []
+        homepage = typing.cast(typing.Any, meta).get("Home-page")
+        if homepage:
+            urls.append(("Home-page", homepage))
+
+        project_urls = meta.get_all("Project-URL") or []
+        for purl in project_urls:
+            if "," in purl:
+                name, url = purl.split(",", 1)
+                urls.append((name.strip(), url.strip()))
+
+        best_url = _find_best_url(urls)
+        if best_url:
+            return best_url
+    except PackageNotFoundError:
+        pass
+
+    return guess_url_from_pypi(package_name)
 
 
 def get_repo_name(git_url: str) -> str:
