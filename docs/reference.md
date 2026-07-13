@@ -4,24 +4,29 @@
 
 `uvault` can be executed in two different ways depending on your needs:
 
-### 1. As a Project Development Dependency (Recommended)
+### 1. As an Independent Tool via `uvx` (Recommended)
 
-Installing `uvault` as a dev dependency gives it access to your project's environment. This is crucial if you want `uvault add` to automatically guess repository URLs based on the metadata of your installed packages.
-
-```bash
-uv add --dev uvault[github]
-uv run uvault --help
-```
-
-*Note: The `[github]` extra installs `pygithub`, which enables `uvault sync` to automatically fork repositories into your GitHub organization if they don't already exist, and `uvault status` to retrieve information on the status of pull requests or branches.*
-
-### 2. As an Independent Tool via `uvx`
-
-If you prefer keeping your dependencies minimal and don't need the automatic URL resolution feature, you can run `uvault` purely as an isolated, ephemeral tool using `uvx`.
+Running `uvault` via `uvx` is the cleanest and most robust method. It executes `uvault` in an isolated, ephemeral environment, which prevents `uv` from attempting to sync your project's dependencies before they are fully vaulted.
 
 ```bash
 uvx --with uvault[github] uvault sync
 ```
+
+*Note: The `[github]` extra installs `pygithub`, which enables automatic forking into your GitHub organization during `uvault sync` and status checks.*
+
+### 2. As a Project Development Dependency
+
+If you want `uvault add` to automatically resolve repository URLs by reading the metadata of packages already installed in your local virtual environment, you can install it as a dev dependency:
+
+```bash
+uv add --dev uvault[github]
+```
+
+When installed as a dependency, run commands using `uv run --frozen` to prevent environment sync failures when dependencies are unresolved:
+```bash
+uv run --frozen uvault sync
+```
+
 
 ## `pyproject.toml` Configuration
 
@@ -187,6 +192,9 @@ When releasing a project (e.g., via `bump-my-version`), this command extracts th
 
 * `-P <package>, --package <package>` : Apply the release tag only to the specified vaulted package. Can be used multiple times.
 * `--keep-develop` : By default, packages in develop mode are restored to their vaulted state before tagging. Use this flag to keep them in develop mode (skipping their release).
+
+!!! note "Development Version Lifecycle (PEP 440)"
+    Under PEP 440, developmental versions (e.g., `1.0.1.dev0`) are ordered *prior* to their corresponding final release (`1.0.1`). When running `uvault release`, ensure your project version has been bumped to the final release version. To learn how to configure `bump-my-version` to manage this cycle automatically, see [Step 4 of the How-To guide](./how-to.md#step-4-releasing-and-version-lifecycle-with-bump-my-version).
 
 ### `uvault status`
 

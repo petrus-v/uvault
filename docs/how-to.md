@@ -4,20 +4,31 @@
 
 `uvault` is built around a typical workflow: declaring a dependency intention, synchronizing it to your vault, and (optionally) switching to local development mode.
 
-### Installation (Recommended)
+### Installation & Execution (Recommended)
 
-To get the most out of `uvault`, especially its ability to automatically discover repository URLs via package metadata when using the `uvault add` command, we highly recommend installing it as a development dependency in your project:
+The recommended way to use `uvault` is as an independent tool via `uvx`. Running it through `uvx` runs `uvault` in an isolated environment, avoiding version conflicts and preventing `uv run` from attempting to synchronize your project's environment when a dependency is not yet resolved.
 
 ```bash
-uv add --dev uvault
+# To run any uvault command:
+uvx --with uvault[github] uvault <command>
 ```
 
-By installing it within your project's environment, `uvault` gains access to the local site-packages, allowing it to easily read the metadata of your project's existing dependencies.
+#### Alternative: Installing as a Project Development Dependency
 
-!!! tip "Using `uvault` via `uv run`"
-    When `uvault` is installed as a project dependency, running `uv run uvault <command>` triggers an automatic environment synchronization by `uv`. If you are adding a new dependency to your project, this automatic sync might fail because the new dependency isn't vaulted/resolved yet.
+If you want `uvault add` to automatically discover repository URLs via local package metadata (which requires reading the metadata of packages already installed in your project), you can install `uvault` as a dev dependency:
 
-    To avoid this, use the `--frozen` flag when invoking `uvault` (e.g., `uv run --frozen uvault add ...` and `uv run --frozen uvault sync`), or ensure you run the `uvault` commands *before* adding the dependency to your `pyproject.toml`.
+```bash
+uv add --dev uvault[github]
+```
+
+!!! tip "Using `uvault` via `uv run` with `--frozen`"
+    If you install `uvault` as a project dependency, running `uv run uvault <command>` triggers an automatic environment synchronization by `uv`. If you are in the middle of adding or updating a vaulted dependency, this sync might fail.
+
+    To bypass this, always run with the `--frozen` flag:
+    ```bash
+    uv run --frozen uvault <command>
+    ```
+
 
 ### Step 1: Add a new dependency (`uvault add`)
 
@@ -91,17 +102,31 @@ This command will:
 uv sync
 ```
 
-### Step 4: Releasing with `bump-my-version`
+### Step 4: Releasing and Version Lifecycle with `bump-my-version`
 
-When releasing your project, the versions of vaulted dependencies' tags should ideally track the new release version without pulling potentially unstable, newer commits from the upstream source.
+When managing a project's release lifecycle, understanding how development versions and final releases relate is crucial under **PEP 440**.
 
-Use the `uvault release` command in combination with tools like `bump-my-version`.
+#### The PEP 440 Version Ordering Constraint
 
-> **Crucial Warning:** `bump-my-version` must be configured to only change the main project version in `pyproject.toml`. It should **not** automatically search and replace > version strings in dependency tags (`[tool.uv.sources]`), as this can break the reference.
+Under PEP 440, developmental releases (e.g., `.dev0`, `.dev1`) are considered **pre-releases** and are ordered *prior* to their corresponding final release.
 
-Instead, use the `pre_commit_hooks` from `bump-my-version` to automatically run `uvault release` and update the lockfile before the release commit is made.
+```python
+from packaging.version import Version
+Version("1.0.1.dev0") > Version("1.0.1")  # False
+Version("1.0.2.dev0") > Version("1.0.1")  # True
+```
 
-Here is an example `bump-my-version` configuration in `pyproject.toml`, assuming you have also configured a custom `release_tag_template` to omit the commit SHA:
+This means that if you release version `1.0.1`, you should **not** configure your next development iteration version to be `1.0.1.dev0`, as it would be considered older than the version you just released. Instead, immediately after releasing `1.0.1`, you must bump the project version to `1.0.2.dev0` (or `1.1.0.dev0`).
+
+#### The Role of `uvault` in Bumping Versions
+
+`uvault` is not a version manager. It reads the version of your project defined in `pyproject.toml` to name the vaulted tags (using `{project_version}` or `{project_version_dev}`).
+
+It is **not** the role of `uvault` to take the initiative to automatically increment version numbers. `uvault` cannot guess whether your next release will be a patch, minor, or major bump. The version lifecycle should be managed by you (or your CI/CD pipeline) using a tool like `bump-my-version`.
+
+#### Recommended `bump-my-version` Configuration
+
+To support transitioning from a development version (e.g., `1.0.1.dev0`) to a final release (e.g., `1.0.1`), and then automatically preparing the next development version (e.g., `1.0.2.dev0`), configure your `pyproject.toml` as follows:
 
 ```toml
 [tool.uvault]
@@ -109,15 +134,28 @@ tag_prefix = "apycod"
 release_tag_template = "{project_version}+{tag_prefix_normalized}.{pkg_normalized}"
 
 [tool.bumpversion]
-current_version = "1.0.0"
+current_version = "1.0.0.dev0"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)(\\.(?P<release>dev)(?P<build>\\d+))?"
+serialize = [
+    "{major}.{minor}.{patch}.{release}{build}",
+    "{major}.{minor}.{patch}"
+]
 commit = true
 tag = true
+tag_name = "v{new_version}"
 message = "chore: bump version {current_version} → {new_version}"
+allow_shell_hooks = true
+
 pre_commit_hooks = [
-    "uv run uvault release",
+    # Conditionally execute uvault release only if the new version is a final release (does not contain 'dev')
+    "[[ \"$BVHOOK_NEW_VERSION\" =~ dev ]] || uvx --with uvault[github] uvault release",
     "uv sync",
     "git add pyproject.toml uv.lock"
 ]
+
+[tool.bumpversion.parts.release]
+values = ["dev", "final"]
+optional_value = "final"
 
 # Files where the version should be bumped
 [[tool.bumpversion.files]]
@@ -125,6 +163,36 @@ filename = "pyproject.toml"
 search = 'version = "{current_version}"'
 replace = 'version = "{new_version}"'
 ```
+
+#### Workflow and Commands
+
+With the configuration above, here is how you run your release cycle:
+
+1. **Working in Dev Mode:**
+   Your version in `pyproject.toml` is currently `1.0.1.dev0`. Any `uvault sync` commands will use this version for tagging dependencies (e.g., `1.0.1.dev0+apycod.my.package.abcdef1`).
+
+2. **Publishing the Final Release:**
+   When you are ready to publish, bump the `release` part:
+   ```bash
+   uvx bump-my-version bump release
+   ```
+   * **What happens:**
+     * The version becomes `1.0.1`.
+     * The `pre_commit_hooks` detect that the version is final (doesn't contain `dev`) and execute `uvx --with uvault[github] uvault release`.
+     * `uvault release` freezes the current commits of your vaulted dependencies under the release version tag `1.0.1`.
+     * `bump-my-version` commits the changes and creates the Git tag `v1.0.1`.
+
+3. **Preparing the Next Development Iteration:**
+   Immediately after the release, bump the version to start the next dev cycle:
+   ```bash
+   uvx bump-my-version bump patch --no-tag
+   ```
+   * **What happens:**
+     * The version increments the patch number and resets the release part, becoming `1.0.2.dev0`.
+     * The `pre_commit_hooks` detect the `dev` suffix and skip the `uvault release` call, leaving your vaulted dependencies untouched.
+     * `bump-my-version` commits the update to `1.0.2.dev0` (e.g. "Bump version: 1.0.1 → 1.0.2.dev0") but does **not** create a Git tag (due to `--no-tag`).
+     * You are now ready to continue standard development.
+
 
 **What happens during `uvault release`?**
 
