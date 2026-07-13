@@ -76,7 +76,7 @@ def test_sync_success(mock_run, temp_pyproject, tmp_path):
     assert "my-addon" in doc["tool"]["uv"]["sources"]
     source = doc["tool"]["uv"]["sources"]["my-addon"]
     assert source["git"] == "https://github.com/petrus-v/my-addon.git"
-    assert source["tag"] == "ppr+1234abcd"
+    assert source["tag"] == "0.0.0.dev0+ppr.my.addon.1234abcd"
     assert source["subdirectory"] == "my_addon"
 
     clone_call = [call for call in mock_run.call_args_list if "clone" in call.args[0]]
@@ -97,7 +97,7 @@ def test_sync_success(mock_run, temp_pyproject, tmp_path):
         str(cache_dir / "my-addon"),
         "push",
         "ssh://git@github.com/petrus-v/my-addon.git",
-        "1234abcd:refs/tags/ppr+1234abcd",
+        "1234abcd:refs/tags/0.0.0.dev0+ppr.my.addon.1234abcd",
     ]
 
 
@@ -387,7 +387,7 @@ def test_sync_rev_is_already_sha(mock_run, temp_pyproject, tmp_path):
 
     assert (
         doc["tool"]["uv"]["sources"]["my-addon"]["tag"]
-        == "1234567890abcdef1234567890abcdef12345678"
+        == "0.0.0.dev0+my.addon.1234567890abcdef1234567890abcdef12345678"
     )
 
 
@@ -481,7 +481,8 @@ def test_sync_include_project_version(mock_run, tmp_path):
         doc = tomlkit.parse(f.read())
 
     assert (
-        doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "apycod-19.0.0.1.0+12345678"
+        doc["tool"]["uv"]["sources"]["my-addon"]["tag"]
+        == "19.0.0.1.0+apycod.my.addon.12345678"
     )
 
 
@@ -520,7 +521,10 @@ def test_sync_include_project_version_false(mock_run, tmp_path):
     with open(pyproject) as f:
         doc = tomlkit.parse(f.read())
 
-    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "apycod+12345678"
+    assert (
+        doc["tool"]["uv"]["sources"]["my-addon"]["tag"]
+        == "19.0.0.1.0.dev0+apycod.my.addon.12345678"
+    )
 
 
 def test_git_reference_args():
@@ -736,7 +740,7 @@ def test_sync_release_no_tag_in_uv_source(mock_run, temp_pyproject, tmp_path, ca
 
     with open(temp_pyproject, "r") as f:
         doc = tomlkit.parse(f.read())
-    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "0.0.0+9999abcd"
+    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "0.0.0+my.addon.9999abcd"
 
 
 @patch("uvault.vcs.subprocess.run")
@@ -859,3 +863,123 @@ def test_sync_fork_success_release(
     # Check that push was called twice
     push_call = [call for call in mock_run.call_args_list if "push" in call.args[0]]
     assert len(push_call) == 2
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_custom_tag_template(mock_run, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    content = """
+    [tool.uvault]
+    tag_prefix = "custom-"
+    tag_template = "{tag_prefix}{pkg_name}-{sha}"
+    [[tool.uvault.vcs_vaults]]
+    provider = "github.com"
+    owner = "petrus-v"
+
+    [tool.uvault.sources]
+    my-addon = { git = "https://github.com/OCA/my-addon", rev = "1234abcd" }
+    """
+    pyproject.write_text(content)
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(pyproject_path=pyproject, cache_dir=tmp_path / "cache")
+    assert cmd.run() == 0
+
+    with open(pyproject) as f:
+        doc = tomlkit.parse(f.read())
+
+    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "custom-my-addon-1234abcd"
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_custom_release_tag_template(mock_run, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    content = """
+    [project]
+    version = "2.3.4"
+    [tool.uvault]
+    release_tag_template = "{pkg_normalized}/{project_version}"
+    [[tool.uvault.vcs_vaults]]
+    provider = "github.com"
+    owner = "petrus-v"
+
+    [tool.uvault.sources]
+    my-addon = { git = "https://github.com/OCA/my-addon", rev = "1234abcd" }
+    """
+    pyproject.write_text(content)
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            mock_result.stdout = "1234abcd refs/pull/123/head\n"
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(
+        pyproject_path=pyproject, cache_dir=tmp_path / "cache", release=True
+    )
+    assert cmd.run() == 0
+
+    with open(pyproject) as f:
+        doc = tomlkit.parse(f.read())
+
+    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "my.addon/2.3.4"
+
+
+@patch("uvault.vcs.subprocess.run")
+def test_sync_release_sha_from_custom_templated_tag(
+    mock_run, temp_pyproject, tmp_path, capsys
+):
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    doc["tool"].add("uv", tomlkit.table())
+    doc["tool"]["uv"].add("sources", tomlkit.table())
+    doc["tool"]["uv"]["sources"]["my-addon"] = {
+        "git": "old_url",
+        "tag": "1.0.0+apycod.my.addon.abcdef1234567890abcdef1234567890abcdef12",
+    }
+    with open(temp_pyproject, "w") as f:
+        f.write(tomlkit.dumps(doc))
+
+    def mock_run_side_effect(*args, **kwargs):
+        mock_result = MagicMock()
+        if args[0][:2] == ["git", "ls-remote"]:
+            raise subprocess.CalledProcessError(1, args[0])
+        return mock_result
+
+    mock_run.side_effect = mock_run_side_effect
+
+    cmd = SyncCommand(
+        pyproject_path=temp_pyproject, cache_dir=tmp_path / "cache", release=True
+    )
+    assert cmd.run() == 0
+    captured = capsys.readouterr()
+    assert (
+        "Using existing commit abcdef1234567890abcdef1234567890abcdef12 for release"
+        in captured.out
+    )
+
+    with open(temp_pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+    assert (
+        "abcdef1234567890abcdef1234567890abcdef12"
+        in doc["tool"]["uv"]["sources"]["my-addon"]["tag"]
+    )
+
+
+def test_make_dev_version():
+    from uvault.sync import make_dev_version
+
+    assert make_dev_version(None) == "0.0.0.dev0"
+    assert make_dev_version("1.2.3") == "1.2.3.dev0"
+    assert make_dev_version("1.2.3.dev0") == "1.2.3.dev0"
+    assert make_dev_version("1.2.3-dev") == "1.2.3-dev"
+    assert make_dev_version("1.2.3.DEV1") == "1.2.3.DEV1"

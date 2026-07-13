@@ -30,7 +30,8 @@ The intention configuration is located in the `[tool.uvault]` section:
 ```toml
 [tool.uvault]
 tag_prefix = "apycod"                   # (Optional) Prefix for generated tags. Defaults to "".
-include_sha_in_release = false          # (Optional) Includes the commit SHA in the vault tag during releases. Defaults to true.
+tag_template = "..."                    # (Optional) Template for tags in sync mode. Defaults to PEP 440 compatible format.
+release_tag_template = "..."            # (Optional) Template for tags in release mode. Defaults to PEP 440 compatible format.
 dev_directory = ".src/"                 # (Optional) Directory for developed sources. Defaults to ".src/".
 ignore_labels = ["mod:", "series:"]     # (Optional) PR labels prefixes to ignore in 'uvault status'. Defaults to ["mod:", "series:"].
 
@@ -47,22 +48,45 @@ default = true                          # (Optional) Marks this vault as the def
 my-package = { git = "https://github.com/OCA/repository", rev = "refs/pull/100/head", subdirectory = "my_package" }
 ```
 
-## Tag Nomenclature
+## Tag Nomenclature & Templating
 
-`uvault` uses a specific naming convention for the tags it pushes to your vault, depending on the command executed:
+`uvault` uses PEP 440-compatible templates for the tags it pushes to your vault. You can customize the tags generated during standard synchronization (`uvault sync`) and during releases (`uvault release`) using custom templates in your `pyproject.toml`.
 
-* **`uvault sync`**: Generates tags in the format `<tag_prefix>+<sha>` (e.g., `apycod+abcdef123...`). The project version is deliberately omitted during standard synchronization to avoid polluting tags when the version hasn't officially changed.
-* **`uvault release`**: Generates tags that always include the project version. Depending on the `include_sha_in_release` setting, it takes the format `<tag_prefix>-<project_version>+<sha>` (if `true`) or simply `<tag_prefix>-<project_version>` (if `false`).
+### Default Nomenclature (PEP 440 Compliant)
 
-### The `include_sha_in_release` Parameter
+By default, to avoid tag collisions when multiple packages share the same Git repository (monorepo), the generated tags are structured as PEP 440 local version identifiers:
 
-While `include_sha_in_release` defaults to `true`, **it is highly recommended to set it to `false`** if you are using a structured hook-based workflow (like `bump-my-version`).
+* **`uvault sync`** (default template):
+  - With a tag prefix: `{project_version_dev}+{tag_prefix_normalized}.{pkg_normalized}.{sha}` (e.g., `1.0.0.dev0+apycod.my.package.abcdef1`)
+  - Without a tag prefix: `{project_version_dev}+{pkg_normalized}.{sha}` (e.g., `1.0.0.dev0+my.package.abcdef1`)
+* **`uvault release`** (default template):
+  - With a tag prefix: `{project_version}+{tag_prefix_normalized}.{pkg_normalized}.{sha}` (e.g., `1.0.0+apycod.my.package.abcdef1`)
+  - Without a tag prefix: `{project_version}+{pkg_normalized}.{sha}` (e.g., `1.0.0+my.package.abcdef1`)
 
-Setting it to `false` yields much cleaner, uniform tags during a release (e.g., `apycod-1.0.0`).
+### Template Placeholders
 
-**Why does it default to `true`?**
+The following placeholders can be used in both `tag_template` and `release_tag_template`:
 
-If your workflow does not guarantee that a single version string maps to a single atomic release commit (for instance, if you might run `uvault release` multiple times for the exact same project version), omitting the SHA would cause `uvault` to overwrite the same tag in the vault, potentially losing intermediate locked versions. Keeping the SHA by default acts as a safety mechanism against accidental tag collisions.
+* `{project_version}`: The version of the project defined in `pyproject.toml` (e.g., `1.0.0`). Defaults to `0.0.0` if not set.
+* `{project_version_dev}`: The version of the project with a `.dev0` suffix appended (e.g., `1.0.0.dev0`), or untouched if the version already contains a `dev` suffix. Defaults to `0.0.0.dev0` if not set.
+* `{tag_prefix}`: The raw `tag_prefix` string (e.g., `apycod-`).
+* `{tag_prefix_normalized}`: The `tag_prefix` normalized to be PEP 440 local version segment compliant (replacing non-alphanumeric chars with dots, e.g. `apycod`).
+* `{pkg_name}`: The raw package name (e.g., `my-package`).
+* `{pkg_normalized}`: The package name normalized to be PEP 440 local version segment compliant (e.g. `my.package`).
+* `{sha}`: The git commit SHA of the package (e.g., `abcdef1`).
+
+### Custom Template Examples
+
+If you prefer a non-PEP 440 structure (for example, standard namespaced tags for monorepos):
+
+```toml
+[tool.uvault]
+# Namespaced release tag: my-package-1.0.0+apycod.abcdef1
+release_tag_template = "{pkg_name}-{project_version}+{tag_prefix_normalized}.{sha}"
+
+# Simple prefixed sync tag: apycod-my-package-abcdef1
+tag_template = "{tag_prefix}{pkg_name}-{sha}"
+```
 
 ## User Configuration
 

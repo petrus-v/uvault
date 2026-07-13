@@ -85,8 +85,12 @@ class PyProject:
         return self.tool_uvault.get("tag_prefix", "")
 
     @property
-    def include_sha_in_release(self) -> bool:
-        return self.tool_uvault.get("include_sha_in_release", True)
+    def tag_template(self) -> str | None:
+        return self.tool_uvault.get("tag_template")
+
+    @property
+    def release_tag_template(self) -> str | None:
+        return self.tool_uvault.get("release_tag_template")
 
     @property
     def dev_directory(self) -> str:

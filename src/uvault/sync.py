@@ -1,3 +1,4 @@
+import re
 import subprocess
 from pathlib import Path
 from uvault.vcs import (
@@ -11,6 +12,14 @@ from uvault.source import PackageSource
 from uvault.project import PyProject, normalize_pkg_name
 
 
+def make_dev_version(version: str | None) -> str:
+    if not version:
+        return "0.0.0.dev0"
+    if "dev" in version.lower():
+        return version
+    return f"{version}.dev0"
+
+
 class PackageSyncer:
     def __init__(
         self,
@@ -21,7 +30,8 @@ class PackageSyncer:
         tag_prefix: str,
         force_update: bool,
         project_version: str | None = None,
-        include_sha_in_release: bool = True,
+        tag_template: str | None = None,
+        release_tag_template: str | None = None,
         current_sha: str | None = None,
         is_release: bool = False,
         vaulting: bool = True,
@@ -34,7 +44,8 @@ class PackageSyncer:
         self.tag_prefix = tag_prefix
         self.force_update = force_update
         self.project_version = project_version
-        self.include_sha_in_release = include_sha_in_release
+        self.tag_template = tag_template
+        self.release_tag_template = release_tag_template
         self.current_sha = current_sha
         self.is_release = is_release
         self.vaulting = vaulting
@@ -78,20 +89,39 @@ class PackageSyncer:
                 print(f"Failed to resolve {git_ref.value} in {origin_git}")
                 return None
 
-        tag_name = self.tag_prefix.rstrip("-+")
-        if self.is_release and self.project_version:
-            if tag_name:
-                tag_name += f"-{self.project_version}"
-            else:
-                tag_name = self.project_version
+        def normalize_pep440_local_segment(s: str) -> str:
+            s = re.sub(r"[^a-zA-Z0-9]+", ".", s)
+            return s.strip(".").lower()
 
-            if self.include_sha_in_release:
-                tag_name += f"+{sha}"
+        tag_prefix_normalized = normalize_pep440_local_segment(self.tag_prefix)
+        pkg_normalized = normalize_pep440_local_segment(self.pkg)
+
+        if self.is_release:
+            template = self.release_tag_template
+            if not template:
+                if self.tag_prefix:
+                    template = "{project_version}+{tag_prefix_normalized}.{pkg_normalized}.{sha}"
+                else:
+                    template = "{project_version}+{pkg_normalized}.{sha}"
         else:
-            if tag_name:
-                tag_name += f"+{sha}"
-            else:
-                tag_name = sha
+            template = self.tag_template
+            if not template:
+                if self.tag_prefix:
+                    template = "{project_version_dev}+{tag_prefix_normalized}.{pkg_normalized}.{sha}"
+                else:
+                    template = "{project_version_dev}+{pkg_normalized}.{sha}"
+
+        project_version_dev = make_dev_version(self.project_version)
+
+        tag_name = template.format(
+            project_version=self.project_version or "0.0.0",
+            project_version_dev=project_version_dev,
+            tag_prefix=self.tag_prefix,
+            tag_prefix_normalized=tag_prefix_normalized,
+            pkg_name=self.pkg,
+            pkg_normalized=pkg_normalized,
+            sha=sha,
+        )
 
         repo_name = get_repo_name(origin_git)
         vault_fetch_url, vault_push_url = compute_vault_urls(
@@ -190,7 +220,10 @@ class SyncCommand:
 
         # Fallback
         if "+" in tag_str:
-            current_sha = tag_str.split("+")[-1]
+            local_part = tag_str.split("+")[-1]
+            last_segment = local_part.split(".")[-1]
+            if re.match(r"^[0-9a-fA-F]{7,40}$", last_segment):
+                current_sha = last_segment
 
         if current_sha:
             print(
@@ -289,7 +322,8 @@ class SyncCommand:
                 tag_prefix=tag_prefix,
                 force_update=force_update,
                 project_version=project.project_version,
-                include_sha_in_release=project.include_sha_in_release,
+                tag_template=project.tag_template,
+                release_tag_template=project.release_tag_template,
                 current_sha=current_sha,
                 is_release=self.release,
                 vaulting=self.vaulting,

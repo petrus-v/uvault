@@ -101,12 +101,12 @@ Use the `uvault release` command in combination with tools like `bump-my-version
 
 Instead, use the `pre_commit_hooks` from `bump-my-version` to automatically run `uvault release` and update the lockfile before the release commit is made.
 
-Here is an example `bump-my-version` configuration in `pyproject.toml`, assuming you have also configured `include_sha_in_release = false` in your `[tool.uvault]` section:
+Here is an example `bump-my-version` configuration in `pyproject.toml`, assuming you have also configured a custom `release_tag_template` to omit the commit SHA:
 
 ```toml
 [tool.uvault]
 tag_prefix = "apycod"
-include_sha_in_release = false
+release_tag_template = "{project_version}+{tag_prefix_normalized}.{pkg_normalized}"
 
 [tool.bumpversion]
 current_version = "1.0.0"
@@ -130,7 +130,7 @@ replace = 'version = "{new_version}"'
 
 1. It reads the newly bumped version in `pyproject.toml`.
 2. It extracts the current commit SHA from the existing tag in `[tool.uv.sources]` for each vaulted dependency.
-3. It pushes a new tag to the vault pointing to the exact same commit, without pulling new updates from the upstream repository. The tag name will be cleaner (e.g. `apycod-1.0.1`) if `include_sha_in_release` is `false`, or it will include the SHA (e.g. `apycod-1.0.1+<sha>`) if left to its default `true`.
+3. It pushes a new tag to the vault pointing to the exact same commit, without pulling new updates from the upstream repository. The tag name will be formatted according to the PEP 440 default (e.g. `1.0.1+apycod.my.package.abcdef1`) or your customized template (e.g. `1.0.1+apycod.my.package`).
 4. It updates `[tool.uv.sources]` with the newly generated tags.
 5. If any package is currently in `develop` mode (meaning it doesn't have a vaulted tag in `uv.sources`), `uvault` will revert it to a standard vaulted state before tagging (unless you run it with `--keep-develop`, which would skip the package).
 

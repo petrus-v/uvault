@@ -160,7 +160,10 @@ def test_check_auto_fix_success(tmp_path, capsys, mock_get_remote_sha):
         doc["tool"]["uv"]["sources"]["my-addon"]["git"]
         == "https://github.com/petrus-v/my-addon.git"
     )
-    assert doc["tool"]["uv"]["sources"]["my-addon"]["tag"] == "ppr+1234abcd"
+    assert (
+        doc["tool"]["uv"]["sources"]["my-addon"]["tag"]
+        == "0.0.0.dev0+ppr.my.addon.1234abcd"
+    )
     assert doc["tool"]["uv"]["sources"]["my-addon"]["subdirectory"] == "my_subdir"
 
 
