@@ -148,7 +148,7 @@ allow_shell_hooks = true
 
 pre_commit_hooks = [
     # Conditionally execute uvault release only if the new version is a final release (does not contain 'dev')
-    "[[ \"$BVHOOK_NEW_VERSION\" =~ dev ]] || uvx --with uvault[github] uvault release",
+    "echo \"$BVHOOK_NEW_VERSION\" | grep -q 'dev' || uvx uvault[github] release",
     "uv sync",
     "git add pyproject.toml uv.lock"
 ]
