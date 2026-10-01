@@ -224,3 +224,172 @@ def test_user_config_token_wins_over_env(
 
     auth = mock_github_class.call_args.kwargs.get("auth")
     assert auth.token == "file-token"
+
+
+@requires_github
+@patch("uvault.github.read_user_config")
+@patch("github.Github")
+def test_ensure_tag_ruleset_creates_it(mock_github_class, mock_read_user_config):
+    mock_read_user_config.return_value = {"github": {"token": "t"}}
+    g = mock_github_class.return_value
+    g.requester.requestJsonAndCheck.return_value = ({}, [])
+
+    forge = GitHubForge("https://github.com/foo/bar.git")
+    assert forge.ensure_tag_ruleset("myorg/bar") is True
+
+    post = [
+        c
+        for c in g.requester.requestJsonAndCheck.call_args_list
+        if c.args and c.args[0] == "POST"
+    ]
+    assert len(post) == 1
+    payload = post[0].kwargs["input"]
+    assert payload["target"] == "tag"
+    assert payload["enforcement"] == "active"
+    types = {r["type"] for r in payload["rules"]}
+    # `creation` must never be blocked: the vault has to keep accepting tags.
+    assert types == {"deletion", "non_fast_forward"}
+
+
+@requires_github
+@patch("uvault.github.read_user_config")
+@patch("github.Github")
+def test_ensure_tag_ruleset_is_idempotent(mock_github_class, mock_read_user_config):
+    mock_read_user_config.return_value = {"github": {"token": "t"}}
+    g = mock_github_class.return_value
+    g.requester.requestJsonAndCheck.return_value = (
+        {},
+        [{"name": GitHubForge.TAG_RULESET_NAME, "target": "tag"}],
+    )
+
+    forge = GitHubForge("https://github.com/foo/bar.git")
+    assert forge.ensure_tag_ruleset("myorg/bar") is True
+    # Already present: must not POST again.
+    assert not [
+        c
+        for c in g.requester.requestJsonAndCheck.call_args_list
+        if c.args and c.args[0] == "POST"
+    ]
+
+
+@requires_github
+@patch("uvault.github.read_user_config")
+@patch("github.Github")
+def test_ensure_tag_ruleset_fails_soft_without_admin(
+    mock_github_class, mock_read_user_config, capsys
+):
+    """A token that cannot create rulesets must still be able to vault."""
+    mock_read_user_config.return_value = {"github": {"token": "t"}}
+    from github.GithubException import GithubException  # type: ignore
+
+    g = mock_github_class.return_value
+
+    def side_effect(method, url, **kw):
+        if method == "GET":
+            return ({}, [])
+        raise GithubException(403, {"message": "Resource not accessible"}, None)
+
+    g.requester.requestJsonAndCheck.side_effect = side_effect
+
+    forge = GitHubForge("https://github.com/foo/bar.git")
+    # Does not raise, and says why.
+    assert forge.ensure_tag_ruleset("myorg/bar") is False
+    assert "Administration: write" in capsys.readouterr().out
+
+
+@requires_github
+@patch("uvault.github.read_user_config")
+@patch("github.Github")
+def test_fork_protects_tags_but_is_not_gated_on_it(
+    mock_github_class, mock_read_user_config
+):
+    """Forking must succeed even when the tags cannot be protected."""
+    mock_read_user_config.return_value = {"github": {"token": "t"}}
+    from github.GithubException import GithubException  # type: ignore
+
+    g = mock_github_class.return_value
+    g.get_organization.return_value.create_fork.return_value = MagicMock(
+        full_name="myorg/bar", html_url="https://github.com/myorg/bar"
+    )
+    g.requester.requestJsonAndCheck.side_effect = GithubException(
+        403, {"message": "nope"}, None
+    )
+
+    forge = GitHubForge("https://github.com/foo/bar.git")
+    assert forge.fork("myorg") is True
+
+
+@requires_github
+@patch("uvault.github.read_user_config")
+@patch("github.Github")
+def test_ensure_tag_ruleset_never_raises_on_an_odd_response(
+    mock_github_class, mock_read_user_config
+):
+    """The promise is 'never raises' -- an unexpected payload must not escape.
+
+    Regression: an unpackable-into-two response made this raise ValueError,
+    which propagated out of fork() and failed the fork itself.
+    """
+    mock_read_user_config.return_value = {"github": {"token": "t"}}
+    g = mock_github_class.return_value
+    g.requester.requestJsonAndCheck.return_value = object()  # not a 2-tuple
+
+    forge = GitHubForge("https://github.com/foo/bar.git")
+    assert forge.ensure_tag_ruleset("myorg/bar") is False
+
+
+@patch("uvault.github.read_user_config")
+def test_ensure_tag_ruleset_without_a_token(mock_read_user_config):
+    mock_read_user_config.return_value = {}
+    forge = GitHubForge("https://github.com/foo/bar.git")
+    assert forge.ensure_tag_ruleset("myorg/bar") is False
+
+
+@requires_github
+@patch("uvault.github.read_user_config")
+def test_ensure_tag_ruleset_without_pygithub(mock_read_user_config):
+    mock_read_user_config.return_value = {"github": {"token": "t"}}
+    forge = GitHubForge("https://github.com/foo/bar.git")
+    with patch.dict(
+        "sys.modules", {"github": MagicMock(), "github.GithubException": None}
+    ):
+        assert forge.ensure_tag_ruleset("myorg/bar") is False
+
+
+@requires_github
+@patch("uvault.github.read_user_config")
+@patch("github.Github")
+def test_ensure_tag_ruleset_when_rulesets_are_unavailable(
+    mock_github_class, mock_read_user_config, capsys
+):
+    """404 is what a plan without rulesets looks like."""
+    mock_read_user_config.return_value = {"github": {"token": "t"}}
+    from github.GithubException import GithubException  # type: ignore
+
+    g = mock_github_class.return_value
+    g.requester.requestJsonAndCheck.side_effect = GithubException(
+        404, {"message": "Not Found"}, None
+    )
+
+    forge = GitHubForge("https://github.com/foo/bar.git")
+    assert forge.ensure_tag_ruleset("myorg/bar") is False
+    assert "public repository" in capsys.readouterr().out
+
+
+@requires_github
+@patch("uvault.github.read_user_config")
+@patch("github.Github")
+def test_ensure_tag_ruleset_on_an_unexpected_api_error(
+    mock_github_class, mock_read_user_config, capsys
+):
+    mock_read_user_config.return_value = {"github": {"token": "t"}}
+    from github.GithubException import GithubException  # type: ignore
+
+    g = mock_github_class.return_value
+    g.requester.requestJsonAndCheck.side_effect = GithubException(
+        500, {"message": "boom"}, None
+    )
+
+    forge = GitHubForge("https://github.com/foo/bar.git")
+    assert forge.ensure_tag_ruleset("myorg/bar") is False
+    assert "could not protect tags" in capsys.readouterr().out

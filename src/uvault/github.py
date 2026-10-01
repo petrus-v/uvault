@@ -108,10 +108,90 @@ class GitHubForge(Forge):
             # Wait a moment for GitHub to make the fork available for git operations
             time.sleep(2)
 
+            # Protect the tags on the repository we just created. Advisory:
+            # a token that cannot create rulesets must still be able to fork,
+            # so this never changes the outcome of the fork itself.
+            self.ensure_tag_ruleset(mon_fork_orga.full_name)
+
             return True
         except GithubException as e:
             print(f"Failed to fork GitHub repository: {e}")
             return False
+
+    #: Name of the ruleset uvault manages. Stable, so re-running is idempotent.
+    TAG_RULESET_NAME = "uvault-tags-immutable"
+
+    def ensure_tag_ruleset(self, repo_path: str) -> bool:
+        """Make the tags in ``repo_path`` immutable. Idempotent.
+
+        A vault tag is only a promise until something stops it being deleted
+        or moved; a plain tag can be force-pushed or removed by anyone with
+        push access, which is the very failure mode vaulting exists to avoid.
+
+        Deliberately takes a repository path rather than deriving one, so the
+        same primitive serves a per-upstream fork and a single shared vault
+        repository. Call it after creating a fork, or after pushing a tag.
+
+        Returns True when the ruleset is present afterwards, False when it
+        could not be created. **Never raises**: creating a ruleset needs
+        ``Administration: write``, which is strictly more than forking and
+        pushing, so a token that cannot do it must still be able to vault.
+        """
+        g = self._get_client(allow_anonymous=False)
+        if not g:
+            return False
+
+        try:
+            from github.GithubException import GithubException  # type: ignore
+        except ImportError:
+            return False
+
+        base = f"/repos/{repo_path}/rulesets"
+        payload = {
+            "name": self.TAG_RULESET_NAME,
+            "target": "tag",
+            "enforcement": "active",
+            "conditions": {"ref_name": {"include": ["~ALL"], "exclude": []}},
+            # `deletion` and `non_fast_forward` only. A `creation` rule is the
+            # obvious third one and it would break every later sync, because
+            # the vault has to keep accepting new tags.
+            "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}],
+        }
+
+        try:
+            _, existing = g.requester.requestJsonAndCheck("GET", base)
+            for ruleset in existing or []:
+                if (
+                    ruleset.get("name") == self.TAG_RULESET_NAME
+                    and ruleset.get("target") == "tag"
+                ):
+                    return True
+            g.requester.requestJsonAndCheck("POST", base, input=payload)
+        except GithubException as e:
+            status = getattr(e, "status", None)
+            if status == 403:
+                print(
+                    f"WARNING: not allowed to protect tags on '{repo_path}' "
+                    "(creating a ruleset needs Administration: write). "
+                    "Tags are vaulted but deletable."
+                )
+            elif status == 404:
+                print(
+                    f"WARNING: cannot protect tags on '{repo_path}': rulesets "
+                    "are unavailable here. On GitHub Free they require a "
+                    "public repository."
+                )
+            else:
+                print(f"WARNING: could not protect tags on '{repo_path}': {e}")
+            return False
+        except Exception as e:  # noqa: BLE001 - advisory, must not break vaulting
+            print(f"WARNING: could not protect tags on '{repo_path}': {e}")
+            return False
+
+        print(
+            f"Tags on '{repo_path}' are now protected against deletion and force-push."
+        )
+        return True
 
     def enrich_package_status(
         self, pkg_status: "PackageStatus", ignore_labels: list[str]
