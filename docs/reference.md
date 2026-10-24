@@ -153,6 +153,47 @@ If you want to restrict your token so it can *only* fork repositories into your 
 6. Generate the token and paste it into your `~/.config/uvault/config.toml` file.
 *(Note: Fine-grained tokens have implicit read access to all public repositories, which allows them to read the upstream source repository before forking it into your organization).*
 
+**Automatic Tag Protection (GitHub):**
+
+When `uvault sync` forks a repository into your organization, it also applies a
+repository ruleset named `uvault-tags-immutable` to that vault repository. A tag
+is only a durable pin if nothing can move or remove it, and by default anyone
+with push access can delete a tag or force-push over it — the same failure mode
+vaulting exists to prevent, relocated from the upstream repository to your vault.
+
+The ruleset targets **all tags** and blocks three things:
+
+| rule | why |
+|---|---|
+| `deletion` | a vault tag can be the last remaining reference to a commit upstream has discarded |
+| `non_fast_forward` | a tag that can be rewritten is not a pin |
+| `update` | `non_fast_forward` alone still permits force-pushing an existing tag |
+
+Tag **creation** is deliberately *not* restricted: the vault must keep accepting
+new tags, so blocking it would break every subsequent `uvault sync`. Blocking
+updates costs nothing in exchange, because `uvault` pushes
+`<sha>:refs/tags/<tag>` without `--force` and so never moves a tag that already
+exists.
+
+This is **advisory, and never blocks vaulting**. Creating a ruleset requires the
+`Administration: write` permission, which is more than forking and pushing need,
+so a token without it still vaults successfully — you get a warning and the tags
+are left unprotected:
+
+```
+WARNING: not allowed to protect tags on 'myorg/myrepo' (creating a ruleset
+needs Administration: write). Tags are vaulted but deletable.
+```
+
+Two further cases worth knowing:
+
+* Rulesets are unavailable on some plans. On GitHub Free they require the
+  repository to be **public**; a private vault repository reports a 404 and the
+  same warning is printed.
+* Repositories forked before this behaviour existed are not retrofitted — the
+  ruleset is applied at fork time. Re-applying it to existing vault
+  repositories is not yet exposed as a command.
+
 ### `uvault add`
 
 Adds a new dependency intention directly into `[tool.uvault.sources]` without manual file editing.
