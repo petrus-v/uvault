@@ -44,13 +44,53 @@ ignore_labels = ["mod:", "series:"]     # (Optional) PR labels prefixes to ignor
 [[tool.uvault.vcs_vaults]]
 provider = "github.com"                 # (Required) The git hosting provider (e.g., "github.com" or "gitlab.com").
 owner = "petrus-v"                      # (Optional) The user or organization owning the vault repository.
+repo = "my-shared-vault"                # (Optional) Target a single repository instead of mirroring per-package repos under `owner`.
+packages = ["odoo-addon-*", "my-pkg"]   # (Optional) List of package name patterns (wildcards supported) routed to this vault.
 fetch_ssh = true                        # (Optional) If true, generates ssh:// URLs in [tool.uv.sources] instead of https://. Defaults to false.
 push_ssh = true                         # (Optional) If true, pushes tags to the vault using ssh://. Defaults to true.
-default = true                          # (Optional) Marks this vault as the default for synchronizing packages.
+default = true                          # (Optional) Marks this vault as the fallback default for unmatched packages.
 
 # Declaration of dependencies to synchronize
 [tool.uvault.sources]
 my-package = { git = "https://github.com/OCA/repository", rev = "refs/pull/100/head", subdirectory = "my_package" }
+```
+
+### Vault Configuration (`[[tool.uvault.vcs_vaults]]`)
+
+You can declare one or more `[[tool.uvault.vcs_vaults]]` entries. `[tool.uvault.sources]` intentionally keeps the exact same format as `[tool.uv.sources]`, so all routing between packages and vaults is configured inside `[[tool.uvault.vcs_vaults]]`.
+
+#### Vault Modes: Organization vs. Single-Repository
+
+* **Organization / Mirror Mode (default, `repo` omitted):**
+  Each upstream repository `<repo_name>` is vaulted to its own repository under `owner`: `<provider>/<owner>/<repo_name>.git`.
+  If the target repository does not exist yet on GitHub, `uvault sync` automatically attempts to fork the upstream repository into `owner`.
+
+* **Single-Repository Mode (`repo` specified):**
+  All packages routed to this vault push their tags into **one single repository**: `<provider>/<owner>/<repo>.git` (or `<provider>/<repo>.git` if `owner` is omitted).
+  * The target repository must already exist and be writable; **auto-forking is disabled** when `repo` is set (since multiple unrelated upstream repositories cannot be forked into a single custom repository).
+  * Make sure your `tag_template` / `release_tag_template` includes `{pkg_normalized}` or `{pkg_name}` (which the default templates already do) so tags from different packages do not collide.
+
+#### Routing Packages with `packages` & Wildcards
+
+Use the optional `packages` list on a vault to route specific packages to it:
+
+* Patterns support Unix shell-style wildcards (`*`, `?`, `[seq]`) matched against the package name.
+* Both package names and patterns are normalized following PEP 503 (`-`, `_`, and `.` are treated equivalently, case-insensitive). For example, `odoo_addon_*` matches `odoo-addon-sale`.
+* **Precedence:** Vaults are evaluated in declaration order; the **first** vault whose `packages` pattern matches wins. Place more specific patterns before broader wildcards.
+* **Fallback:** If no `packages` pattern matches a package, `uvault` falls back to the vault marked `default = true` (or the first declared vault if none is marked `default`).
+
+```toml
+# Example: route Odoo addons to a single shared repository, everything else to an org vault
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "my-org"
+default = true
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "my-org"
+repo = "odoo-addons-vault"
+packages = ["odoo-addon-*"]
 ```
 
 ## Tag Nomenclature & Templating

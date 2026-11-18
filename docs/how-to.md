@@ -273,3 +273,41 @@ repos:
     hooks:
       - id: uv-lock
 ```
+
+## How to route packages to specific vaults
+
+By default, all dependencies in `[tool.uvault.sources]` are vaulted into your default `[[tool.uvault.vcs_vaults]]` organization, with one vault repository per upstream repository.
+
+If you need different packages to go to different vaults—or if you want multiple upstream repositories to push their tags into a **single shared vault repository**—configure `packages` and (optionally) `repo` on your `[[tool.uvault.vcs_vaults]]` entries.
+
+### Example: Multi-vault routing with wildcards and a single-repository vault
+
+```toml
+# 1. Default organization vault (mirrors each upstream repo under my-org/<repo>)
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "my-org"
+default = true
+
+# 2. Specific package routed to a dedicated private GitLab organization
+[[tool.uvault.vcs_vaults]]
+provider = "gitlab.com"
+owner = "my-private-group"
+packages = ["internal-core"]
+
+# 3. All Odoo addons from multiple upstream repos pushed as tags into ONE vault repository
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "my-org"
+repo = "odoo-addons-vault"
+packages = ["odoo-addon-*"]
+```
+
+When running `uvault sync` or `uvault develop`:
+
+* `internal-core` is vaulted to `gitlab.com/my-private-group/<upstream-repo>.git`.
+* `odoo-addon-sale` and `odoo-addon-stock` (even if they come from different upstream repositories) both push their tags to `github.com/my-org/odoo-addons-vault.git`.
+* Any other package falls back to the `default = true` vault (`github.com/my-org/<upstream-repo>.git`).
+
+!!! note "Single-repository vault prerequisites"
+    When `repo` is specified on a vault, `my-org/odoo-addons-vault` must already exist on the remote provider (auto-forking is disabled in single-repository mode). Make sure your tag template includes `{pkg_normalized}` or `{pkg_name}` (enabled by default) to prevent tag collisions between packages.

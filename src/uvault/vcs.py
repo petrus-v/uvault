@@ -118,10 +118,13 @@ def get_repo_name(git_url: str) -> str:
 def compute_vault_urls(repo_name: str, vault_config: dict) -> tuple[str, str]:
     provider = vault_config.get("provider", "github.com")
     owner = vault_config.get("owner", "")
+    target_repo = vault_config.get("repo") or repo_name
+    if target_repo.endswith(".git"):
+        target_repo = target_repo[:-4]
     fetch_ssh = vault_config.get("fetch_ssh", False)
     push_ssh = vault_config.get("push_ssh", True)
 
-    path = f"{owner}/{repo_name}.git" if owner else f"{repo_name}.git"
+    path = f"{owner}/{target_repo}.git" if owner else f"{target_repo}.git"
 
     fetch_url = (
         f"ssh://git@{provider}/{path}" if fetch_ssh else f"https://{provider}/{path}"

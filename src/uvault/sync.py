@@ -145,6 +145,14 @@ class PackageSyncer:
                     sha, origin_git, vault_fetch_url, vault_push_url, tag_name, repo_dir
                 )
             except subprocess.CalledProcessError:
+                if self.vault_config.get("repo"):
+                    print(
+                        f"Push to single-repository vault '{vault_push_url}' failed. "
+                        "Ensure the repository exists and you have push access "
+                        "(auto-forking is disabled when 'repo' is set)."
+                    )
+                    raise
+
                 target_org = self.vault_config.get("owner")
 
                 if target_org and self.uvault_source.fork(target_org):
@@ -238,6 +246,83 @@ class SyncCommand:
 
         return current_sha
 
+    def _prepare_syncers(
+        self,
+        project: PyProject,
+        uvault_sources_dict: dict[str, PackageSource],
+        uv_sources_dict: dict[str, PackageSource],
+    ) -> list[PackageSyncer] | None:
+        normalized_packages = {normalize_pkg_name(p) for p in self.packages}
+        packages_to_sync = (
+            normalized_packages if self.packages else list(uvault_sources_dict.keys())
+        )
+        syncers: list[PackageSyncer] = []
+
+        for norm_pkg in packages_to_sync:
+            if norm_pkg not in uvault_sources_dict:
+                print(f"Package {norm_pkg} not found in [tool.uvault.sources]")
+                continue
+
+            uvault_source = uvault_sources_dict[norm_pkg]
+            vault_config = project.get_vault_config(uvault_source.name)
+            if not vault_config:
+                print(f"No vault configured for package {uvault_source.name}.")
+                return None
+
+            force_update = (
+                self.update or self.release or norm_pkg in normalized_packages
+            )
+
+            uv_source = uv_sources_dict.get(norm_pkg)
+            is_develop = uv_source.is_develop if uv_source else False
+
+            if is_develop:
+                if self.keep_develop:
+                    print(
+                        f"Package {uvault_source.name} is in develop mode. Skipping (--keep-develop is set)."
+                    )
+                    continue
+                force_update = True
+                print(
+                    f"Package {uvault_source.name} is in develop mode. Restoring to vaulted state."
+                )
+
+            current_sha = None
+            if not is_develop and self.release and uv_source:
+                vcs_instance = uvault_source.get_vcs()
+                current_sha = self._get_release_sha(
+                    uvault_source.name,
+                    uv_source,
+                    uvault_source,
+                    vault_config,
+                    vcs_instance,
+                )
+
+            if norm_pkg in uv_sources_dict and not force_update:
+                print(
+                    f"Package {uvault_source.name} is already in [tool.uv.sources]. Skipping (use --update to force)."
+                )
+                continue
+
+            syncers.append(
+                PackageSyncer(
+                    pkg=uvault_source.name,
+                    uvault_source=uvault_source,
+                    cache_dir=self.cache_dir,
+                    vault_config=vault_config,
+                    tag_prefix=project.tag_prefix,
+                    force_update=force_update,
+                    project_version=project.project_version,
+                    tag_template=project.tag_template,
+                    release_tag_template=project.release_tag_template,
+                    current_sha=current_sha,
+                    is_release=self.release,
+                    vaulting=self.vaulting,
+                )
+            )
+
+        return syncers
+
     def run(self):
         project = PyProject(self.pyproject_path)
         try:
@@ -250,9 +335,7 @@ class SyncCommand:
             print("No [tool.uvault] section in pyproject.toml")
             return 1
 
-        tag_prefix = project.tag_prefix
-        vault_config = project.get_vault_config()
-        if not vault_config:
+        if not project.get_vault_config():
             print("No [[tool.uvault.vcs_vaults]] configured.")
             return 1
 
@@ -262,77 +345,16 @@ class SyncCommand:
         project.ensure_uv_sources()
         uv_sources_dict = project.uv_sources
 
-        normalized_packages = {normalize_pkg_name(p) for p in self.packages}
-        packages_to_sync = (
-            normalized_packages if self.packages else list(uvault_sources_dict.keys())
-        )
+        syncers = self._prepare_syncers(project, uvault_sources_dict, uv_sources_dict)
+        if syncers is None:
+            return 1
 
         has_changes = False
-
-        for norm_pkg in packages_to_sync:
-            if norm_pkg not in uvault_sources_dict:
-                print(f"Package {norm_pkg} not found in [tool.uvault.sources]")
-                continue
-
-            uvault_source = uvault_sources_dict[norm_pkg]
-            force_update = (
-                self.update or self.release or norm_pkg in normalized_packages
-            )
-
-            is_develop = False
-            uv_source = uv_sources_dict.get(norm_pkg)
-            if uv_source:
-                is_develop = uv_source.is_develop
-
-            if is_develop:
-                if self.keep_develop:
-                    print(
-                        f"Package {uvault_source.name} is in develop mode. Skipping (--keep-develop is set)."
-                    )
-                    continue
-                else:
-                    force_update = True
-                    print(
-                        f"Package {uvault_source.name} is in develop mode. Restoring to vaulted state."
-                    )
-
-            current_sha = None
-            if not is_develop and self.release:
-                if uv_source:
-                    vcs_instance = uvault_source.get_vcs()
-                    current_sha = self._get_release_sha(
-                        uvault_source.name,
-                        uv_source,
-                        uvault_source,
-                        vault_config,
-                        vcs_instance,
-                    )
-
-            if norm_pkg in uv_sources_dict and not force_update:
-                print(
-                    f"Package {uvault_source.name} is already in [tool.uv.sources]. Skipping (use --update to force)."
-                )
-                continue
-
-            syncer = PackageSyncer(
-                pkg=uvault_source.name,
-                uvault_source=uvault_source,
-                cache_dir=self.cache_dir,
-                vault_config=vault_config,
-                tag_prefix=tag_prefix,
-                force_update=force_update,
-                project_version=project.project_version,
-                tag_template=project.tag_template,
-                release_tag_template=project.release_tag_template,
-                current_sha=current_sha,
-                is_release=self.release,
-                vaulting=self.vaulting,
-            )
-
+        for syncer in syncers:
             new_source = syncer.process()
             if new_source is not None:
-                project.set_uv_source(uvault_source.name, new_source)
-                uv_sources_dict[norm_pkg] = new_source
+                project.set_uv_source(syncer.pkg, new_source)
+                uv_sources_dict[normalize_pkg_name(syncer.pkg)] = new_source
                 has_changes = True
 
         if self.delete_extra:

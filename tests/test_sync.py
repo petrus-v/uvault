@@ -983,3 +983,155 @@ def test_make_dev_version():
     assert make_dev_version("1.2.3.dev0") == "1.2.3.dev0"
     assert make_dev_version("1.2.3-dev") == "1.2.3-dev"
     assert make_dev_version("1.2.3.DEV1") == "1.2.3.DEV1"
+
+
+def test_compute_vault_urls_single_repo():
+    from uvault.vcs import compute_vault_urls
+
+    fetch_url, push_url = compute_vault_urls(
+        "upstream-repo",
+        {"provider": "github.com", "owner": "my-org", "repo": "shared-vault"},
+    )
+    assert fetch_url == "https://github.com/my-org/shared-vault.git"
+    assert push_url == "ssh://git@github.com/my-org/shared-vault.git"
+
+    fetch_url2, push_url2 = compute_vault_urls(
+        "upstream-repo",
+        {
+            "provider": "gitlab.com",
+            "repo": "my-org/shared-vault.git",
+            "fetch_ssh": True,
+            "push_ssh": False,
+        },
+    )
+    assert fetch_url2 == "ssh://git@gitlab.com/my-org/shared-vault.git"
+    assert push_url2 == "https://gitlab.com/my-org/shared-vault.git"
+
+
+@patch("uvault.vcs.GitVcs.vault_reference")
+@patch("uvault.vcs.GitVcs.remote_tag_exists", return_value=False)
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value="deadbeef")
+def test_sync_multi_vault_routing_and_single_repo(
+    mock_get_sha, mock_tag_exists, mock_vault_ref, tmp_path
+):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """\
+[project]
+name = "demo"
+version = "1.0.0.dev0"
+
+[tool.uvault]
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "default-org"
+default = true
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "mono-org"
+repo = "all-addons-vault"
+packages = ["odoo-addon-*"]
+
+[tool.uvault.sources]
+my-lib = { git = "https://github.com/upstream/my-lib", branch = "main" }
+odoo-addon-sale = { git = "https://github.com/OCA/sale-workflow", branch = "16.0", subdirectory = "sale_ok" }
+odoo-addon-stock = { git = "https://github.com/OCA/stock-logistics", branch = "16.0", subdirectory = "stock_ok" }
+"""
+    )
+
+    cmd = SyncCommand(pyproject_path=str(pyproject), cache_dir=str(tmp_path / "cache"))
+    assert cmd.run() == 0
+
+    with open(pyproject, "r") as f:
+        doc = tomlkit.parse(f.read())
+
+    uv_sources = doc["tool"]["uv"]["sources"]
+    assert uv_sources["my-lib"]["git"] == "https://github.com/default-org/my-lib.git"
+    assert (
+        uv_sources["odoo-addon-sale"]["git"]
+        == "https://github.com/mono-org/all-addons-vault.git"
+    )
+    assert (
+        uv_sources["odoo-addon-stock"]["git"]
+        == "https://github.com/mono-org/all-addons-vault.git"
+    )
+    # Both addons pushed to the same single vault repo with distinct tags
+    pushed_urls = [call.args[2] for call in mock_vault_ref.call_args_list]
+    assert "ssh://git@github.com/default-org/my-lib.git" in pushed_urls
+    assert pushed_urls.count("ssh://git@github.com/mono-org/all-addons-vault.git") == 2
+
+
+@patch("uvault.source.PackageSource.fork")
+@patch(
+    "uvault.vcs.GitVcs.vault_reference",
+    side_effect=subprocess.CalledProcessError(1, "git push"),
+)
+@patch("uvault.vcs.GitVcs.remote_tag_exists", return_value=False)
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value="deadbeef")
+def test_sync_single_repo_vault_does_not_fork_on_failure(
+    mock_get_sha, mock_tag_exists, mock_vault_ref, mock_fork, tmp_path, capsys
+):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """\
+[project]
+name = "demo"
+version = "1.0.0.dev0"
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "mono-org"
+repo = "all-addons-vault"
+
+[tool.uvault.sources]
+odoo-addon-sale = { git = "https://github.com/OCA/sale-workflow", branch = "16.0" }
+"""
+    )
+
+    cmd = SyncCommand(pyproject_path=str(pyproject), cache_dir=str(tmp_path / "cache"))
+    with pytest.raises(subprocess.CalledProcessError):
+        cmd.run()
+
+    mock_fork.assert_not_called()
+    captured = capsys.readouterr()
+    assert "auto-forking is disabled when 'repo' is set" in captured.out
+
+
+@patch("uvault.sync.PackageSyncer.process")
+def test_sync_aborts_before_processing_if_package_has_no_vault(
+    mock_process, tmp_path, capsys
+):
+    pyproject = tmp_path / "pyproject.toml"
+    original_content = """\
+[project]
+name = "demo"
+version = "1.0.0.dev0"
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "default-org"
+default = true
+
+[tool.uvault.sources]
+pkg-one = { git = "https://github.com/upstream/pkg-one", branch = "main" }
+pkg-two = { git = "https://github.com/upstream/pkg-two", branch = "main" }
+"""
+    pyproject.write_text(original_content)
+
+    def fake_get_vault_config(self, pkg_name=None):
+        if pkg_name == "pkg-two":
+            return None
+        return {"provider": "github.com", "owner": "default-org", "default": True}
+
+    with patch("uvault.sync.PyProject.get_vault_config", fake_get_vault_config):
+        cmd = SyncCommand(
+            pyproject_path=str(pyproject), cache_dir=str(tmp_path / "cache")
+        )
+        assert cmd.run() == 1
+
+    mock_process.assert_not_called()
+    assert pyproject.read_text() == original_content
+    captured = capsys.readouterr()
+    assert "No vault configured for package pkg-two." in captured.out

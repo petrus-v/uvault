@@ -469,3 +469,45 @@ def test_develop_unnormalized_name(mock_run, mock_get_sha, temp_pyproject, tmp_p
     assert (
         doc["tool"]["uv"]["sources"]["my-addon"]["path"] == "./.src/my-addon/my_addon"
     )
+
+
+@patch("uvault.vcs.GitVcs.get_remote_sha", return_value="abcdef123")
+@patch("uvault.vcs.subprocess.run")
+def test_develop_uses_matched_vault_and_repo(mock_run, mock_get_sha, tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """\
+[project]
+name = "demo"
+version = "0.1.0"
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "default-org"
+default = true
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "mono-org"
+repo = "shared-vault"
+packages = ["odoo-addon-*"]
+
+[tool.uvault.sources]
+odoo-addon-sale = { git = "https://github.com/OCA/sale-workflow", branch = "16.0" }
+"""
+    )
+
+    cmd = DevelopCommand(
+        package="odoo-addon-sale", branch="fix-sale", pyproject_path=pyproject
+    )
+    assert cmd.run() == 0
+
+    remote_calls = [
+        call.args[0]
+        for call in mock_run.call_args_list
+        if "remote" in call.args[0] and "vault" in call.args[0]
+    ]
+    assert any(
+        "ssh://git@github.com/mono-org/shared-vault.git" in call
+        for call in remote_calls
+    )
