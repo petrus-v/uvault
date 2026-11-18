@@ -5,6 +5,7 @@ from pathlib import Path
 from uvault.source import PackageSource
 
 
+import fnmatch
 import re
 import typing
 
@@ -96,10 +97,23 @@ class PyProject:
     def dev_directory(self) -> str:
         return self.tool_uvault.get("dev_directory", ".src")
 
-    def get_vault_config(self) -> dict | None:
+    def get_vault_config(self, pkg_name: str | None = None) -> dict | None:
         vaults = self.tool_uvault.get("vcs_vaults", [])
         if not vaults:
             return None
+
+        if pkg_name is not None:
+            norm_pkg = normalize_pkg_name(pkg_name)
+            for vault in vaults:
+                patterns = vault.get("packages")
+                if not patterns:
+                    continue
+                if isinstance(patterns, str):
+                    patterns = [patterns]
+                for pattern in patterns:
+                    if fnmatch.fnmatchcase(norm_pkg, normalize_pkg_name(pattern)):
+                        return vault
+
         return next((v for v in vaults if v.get("default")), vaults[0])
 
     def set_uvault_source(self, name: str, source: PackageSource):

@@ -57,7 +57,7 @@ class DevelopCommand:
 
         repo_name = get_repo_name(origin_url)
 
-        vault_config = project.get_vault_config()
+        vault_config = project.get_vault_config(canonical_name)
         if vault_config:
             _, vault_push_url = compute_vault_urls(repo_name, vault_config)
         else:

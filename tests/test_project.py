@@ -127,3 +127,60 @@ def test_set_uv_source_with_out_of_order_tool_tables(tmp_path):
     reread.read()
     assert "my-pkg" in reread.doc["tool"]["uv"]["sources"]
     assert reread.doc["tool"]["ruff"]["line-length"] == 88
+
+
+def test_get_vault_config_routing(tmp_path):
+    path = tmp_path / "pyproject.toml"
+    path.write_text(
+        """\
+[project]
+name = "demo"
+version = "0.1.0"
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "default-org"
+default = true
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "special-org"
+packages = ["odoo-addon-account"]
+
+[[tool.uvault.vcs_vaults]]
+provider = "gitlab.com"
+owner = "odoo-org"
+packages = ["odoo_addon_*", "*-core"]
+
+[[tool.uvault.vcs_vaults]]
+provider = "github.com"
+owner = "mono-org"
+repo = "single-vault"
+packages = "mono-pkg"
+"""
+    )
+    proj = PyProject(path)
+    proj.read()
+
+    def vault_for(pkg: str | None = None) -> dict:
+        cfg = proj.get_vault_config(pkg)
+        assert cfg is not None
+        return cfg
+
+    # Exact match wins over later wildcard
+    assert vault_for("odoo-addon-account")["owner"] == "special-org"
+    # Wildcard with normalization (_ / . / case)
+    assert vault_for("Odoo.Addon-Sale")["owner"] == "odoo-org"
+    assert vault_for("my-core")["owner"] == "odoo-org"
+    # String packages field handled gracefully
+    assert vault_for("mono-pkg")["repo"] == "single-vault"
+    # Unmatched package falls back to default = true
+    assert vault_for("requests")["owner"] == "default-org"
+    # No package name returns default = true
+    assert vault_for()["owner"] == "default-org"
+
+
+def test_get_vault_config_no_vaults(tmp_path):
+    proj = PyProject(tmp_path / "pyproject.toml")
+    proj.doc = tomlkit.document()
+    assert proj.get_vault_config("anything") is None
